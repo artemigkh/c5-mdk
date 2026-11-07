@@ -53,6 +53,8 @@ engine/        pure-Lua fake client (no host dependency except gameinfo data fil
 host/          Python side
   c5gen.py       CLI: --script, --size, --seed, --option k=v, --civs N, --out dir, --png, --ascii
   gamedb.py      exports needed SQLite tables -> engine/data/gameinfo.lua (cached by db mtime)
+  metrics.py     numeric map metrics from a dump + `compare` against docs/metrics-baselines.json
+  benchmark.py   runs scripts x sizes x seeds in parallel -> out/bench/runs.jsonl + docs/metrics-baselines.json
 render/        PIL hex renderer + ASCII renderer from the map dump
 docs/          engine-api.md (catalog/spec), mapscript-guide.md (authoring guide), gotchas
 tests/         Lua + Python tests (fractal determinism, area calc, run smoke tests on all scripts)
