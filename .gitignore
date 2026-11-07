@@ -1,0 +1,6 @@
+out/
+__pycache__/
+*.pyc
+engine/data/gameinfo.lua
+*.png
+!docs/**/*.png
