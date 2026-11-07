@@ -9,7 +9,8 @@
 //         <blendRidge> <blendFract> <mapW> <mapH> <mapWrapX> <mapWrapY>
 //         -> rand.init(seed); [rifts = fracInit(W,H,riftGrain,rand,0,NULL,xexp,yexp)]
 //            frac.fracInit(W,H,grain,rand,flags,rifts?,xexp,yexp); [frac.ridgeBuilder(...)]
-//            prints getHeight for every (x,y) (y-major), getHeightFromPercent(0..100 step 5), seed
+//            prints getHeight for every (x,y) (y-major), getHeightFromPercent(0..100 step 5),
+//            and the final RNG seed as two 32-bit halves (hi lo)
 #include "CvGameCoreDLLPCH.h"
 #include "CvRandom.h"
 #include "CvFractal.h"
@@ -36,7 +37,7 @@ int main()
 			r.init(seed);
 			printf("RNG");
 			for (int i = 0; i < count; i++) printf(" %lu", r.get(num, "t"));
-			printf("\nSEED %llu\n", r.getSeed());
+			printf("\nSEED %lu %lu\n", (unsigned long)(r.getSeed() >> 32), (unsigned long)(r.getSeed() & 0xffffffffULL));
 		}
 		else if (kind == "FLOAT")
 		{
@@ -46,7 +47,7 @@ int main()
 			r.init(seed);
 			printf("FLOAT");
 			for (int i = 0; i < count; i++) printf(" %.9g", (double)r.getFloat());
-			printf("\nSEED %llu\n", r.getSeed());
+			printf("\nSEED %lu %lu\n", (unsigned long)(r.getSeed() >> 32), (unsigned long)(r.getSeed() & 0xffffffffULL));
 		}
 		else if (kind == "FRAC")
 		{
@@ -72,7 +73,7 @@ int main()
 					printf(" %d", f->getHeight(x, y));
 			printf("\nP");
 			for (int p = 0; p <= 100; p += 5) printf(" %d", f->getHeightFromPercent(p));
-			printf("\nSEED %llu\n", r.getSeed());
+			printf("\nSEED %lu %lu\n", (unsigned long)(r.getSeed() >> 32), (unsigned long)(r.getSeed() & 0xffffffffULL));
 			delete f;
 			delete rifts;
 		}
