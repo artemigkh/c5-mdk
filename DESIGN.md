@@ -77,7 +77,10 @@ out/           generated dumps and images (gitignored)
   "area":        [ ... ],   // area id
   "lake":        [ ... ],   // 0/1
   "continent":   [ ... ],   // continent art type
-  "start_plots": [ {"player":0, "x":10, "y":20, "civ":"CIVILIZATION_ROME", "minor":false}, ... ],
+  "resource_class": [ ... ],   // per resource id: "RESOURCECLASS_LUXURY" | "RESOURCECLASS_BONUS" | "RESOURCECLASS_RUSH" | "RESOURCECLASS_MODERN" (from Resources.ResourceClassType)
+  "feature_natural_wonder": [ ... ],   // per feature id: 0/1 (Features.NaturalWonder)
+  "areas": { "<id>": {"water": 0/1, "size": N, "lake": 0/1} },
+  "start_plots": [ {"player":0, "team":0, "x":10, "y":20, "civ":"CIVILIZATION_ROME", "name":"Rome", "minor":false}, ... ],
   "log": "captured print() output"
 }
 ```
