@@ -10,6 +10,7 @@ exe is closed source, and only the DLL is open).
 
 ## Table of contents
 
+- [Overview: how a map gets made (read this first)](#overview-how-a-map-gets-made-read-this-first) (pipeline order, stock implementations per stage, the seven archetypes compared)
 0. [Conventions and source map](#0-conventions-and-source-map)
 1. [Lifecycle: what the engine calls, and when](#1-lifecycle-what-the-engine-calls-and-when)
 2. [Anatomy of a map script](#2-anatomy-of-a-map-script)
@@ -25,6 +26,151 @@ exe is closed source, and only the DLL is open).
 12. [Macro metrics: what normal VP maps look like](#12-macro-metrics-what-normal-vp-maps-look-like)
 - [Appendix A: API and constants quick reference](#appendix-a-api-and-constants-quick-reference)
 - [Appendix B: VP vs vanilla breaking changes](#appendix-b-vp-vs-vanilla-breaking-changes)
+
+---
+
+## Overview: how a map gets made (read this first)
+
+This chapter is the conceptual map of the rest of the guide. It says what the generation stages
+are, why they run in that order, which stock implementation each stage has and how far it can be
+replaced, and how the seven community reference archetypes differ at each stage. Details, line
+references and gotchas live in the numbered sections it points to.
+
+### O.1 The pipeline and why it is in that order
+
+A script normally keeps the default `GenerateMap()` from `CP\MapGenerator.lua` (§1.3) and replaces
+the stage functions it calls. The order is fixed by data dependencies, not convention.
+
+| # | Stage | Who provides it | Depends on | Why it sits here |
+|---|---|---|---|---|
+| 0 | **Script load** | engine | - | All top-level code runs before a map exists. Then `GetMapInitData` sizes the grid, the engine allocates every plot as ocean with no terrain, and only then calls `GenerateMap` (§1.2). |
+| 1 | **Plot types** `GeneratePlotTypes` | you | - | Land vs water, and relief on land (flat, hills, mountain). Scripts end it with `GenerateCoasts`, which decides coast vs deep ocean for water (§4, §5.3). |
+| 2 | **Terrain** `GenerateTerrain` | you | 1 | Climate on land: grass, plains, desert, tundra, snow. Water keeps its terrain; hills and mountains get a base terrain underneath (§5). |
+| 3 | **Area recalculation** `Map.RecalculateAreas` | engine (C++) | 1 | Derived indexes: areas, landmasses, lake flags. Everything later asks "same continent?" through these ids (§10.2). |
+| 4 | **Rivers** `AddRivers` | default provided | 1, 3 | Sources on high ground, paths walk toward lower plot types until they reach water. Needs final relief and coastline (§6). |
+| 5 | **Lakes** `AddLakes` | default provided | 4 | Inland non-river plots become small water bodies. After rivers so a lake cannot cut a river short (§5.4). |
+| 6 | **Features** `AddFeatures` | you | 2, 4, 5 | Forest, jungle, marsh, oasis, flood plains, ice, atolls. Flood plains need rivers, ice needs coast vs ocean, trees need terrain (§7). |
+| 7 | **Area recalculation** | engine | 6 | Meant for impassable ice and wonders. Under VP areas ignore passability, but landmass, lake and coastal flags still refresh (§10.2.1). |
+| 8 | **Start plot system** `StartPlotSystem` | library (ASP) | everything | Regions, capitals, start normalisation, civ-to-region assignment by start bias, **then** natural wonders kept away from capitals, **then** city states, luxuries, strategics and bonuses placed around all of that. Ends with a final area recalculation (§8). |
+| 9 | **Goody huts** `AddGoodies` | default provided | 8 | Avoid resources, wonders and starts. |
+| 10 | **Continent art** `DetermineContinents` | default provided | 7 | Cosmetic art-set stamping (§9.16). |
+| - | **Coast validation** | engine | - | After the Lua thread ends, any water plot next to land is forced to coast terrain, whatever the script did (§1.2). |
+
+The common misconception is that resources come before starts. They do not. Capitals are chosen on
+bare terrain, and luxuries, strategics and wonders are then distributed relative to them (3
+luxuries within 3 plots of every capital, strategic balance, wonder exclusion radius). That is why
+start-related metrics are invariant across archetypes (§12.3).
+
+**Data model.** The map is a struct of arrays over the plot grid. Each stage writes one layer:
+plot type, terrain, three river-edge flags per plot, feature, resource plus quantity, and finally
+start plots. Setters have cross-layer side effects: changing a plot's water-ness resets its
+terrain, setting a water terrain on land flips the plot type (§10.3), and river crossing flags are
+computed only inside the river setter and only count when both sides are land (§6.2). That is the
+real reason rivers must wait until relief is final.
+
+**What is C++ and what is Lua.** The engine side is small: the map RNG, the diamond-square
+`Fractal` object, plot storage and setters, area and landmass computation, river crossing flags,
+`CanHaveFeature` (reads the database), the continent stamper, and the final coast validation.
+`FractalWorld`, `TerrainGenerator`, the river walker, `FeatureGenerator`, `MapmakerUtilities` and
+the whole start-plot library are Lua you can read, override method by method, or replace.
+
+### O.2 Each stage: stock implementation, knobs, and how far custom goes
+
+Three levels of customisation exist at every stage:
+
+1. **Arguments** to a stock generator.
+2. **Method override** on a stock class at file top level. The stock generators are prototype
+   tables, so `function FeatureGenerator:AddIceAtPlot(...)` in your script replaces that step for
+   every instance created afterwards.
+3. **Replace the stage's global function** and write every plot yourself.
+
+**Plot types (stage 1).**
+- `FractalWorld` (§4.2): one fractal thresholded at a water percentile for land, two more with
+  Voronoi ridgelines for hills and mountains, a shift so the emptiest column sits on the map seam,
+  optional center rift. Knobs: continent grain, rift grain, three sea-level percentiles, world age,
+  extra mountains, plate multiplier, tectonic islands. Subclass it to add a reject-and-retry loop
+  (Continents, Pangaea).
+- `MultilayeredFractal` (§4.4): rectangular regions, each with its own fractal, then one
+  tectonics pass over the whole world. Regions can also be filled analytically (Oval's ellipse).
+- `IslandMaker` (§4.5): island-chain stencils you stamp in.
+- Fully custom: plates (§4.7), Perlin heightmaps (§4.8). The only contract is a plot type for every
+  plot and a coast pass afterwards.
+- Hard limits: fractal grids are capped at 255, and the engine's coast validation always runs.
+
+**Terrain (stage 2).**
+- `TerrainGenerator` (§5.2): latitude bands roughened by a fractal, with desert and plains fractals
+  inside the temperate band. Knobs: temperature, desert and plains percent, band latitudes.
+- Override `GetLatitudeAtPlot` for a bent climate, `GenerateTerrainAtPlot` for a different band
+  rule, or discard it for a temperature-times-rainfall model (Communitu, §9.1).
+- Hard limit: never assign the graphical hill or mountain terrains (§5.1).
+
+**Rivers (stage 4).**
+- Default `AddRivers` (§6.3): four passes pick sources on hills and mountains, then in river-poor
+  areas. The walker turns left or right by a plot-type score plus noise and stops at water or an
+  existing river.
+- Steer it by overriding the global `GetRiverValueAtPlot` (§9.5). Replace it with your own
+  edge-flag writer when you have an elevation model (Communitu's junction-based `RiverMap`, §9.4).
+
+**Lakes (stage 5).**
+- Default `AddLakes`: each eligible inland plot has a 1 in 160 chance (§5.4).
+- A lake is not a terrain. Any water landmass under 10 plots is a lake, so a script makes lakes by
+  writing small water blobs (Continental Drift) or by filling and later restoring small seas
+  (Communitu). Disable the default by defining an empty `AddLakes`.
+
+**Features (stage 6).**
+- `FeatureGenerator` (§7.1): visits each plot in a fixed order (flood plains, oasis, ice, marsh,
+  jungle, forest) driven by rainfall and grain-controlled fractals, ices the polar rows, converts
+  coastal mountains to hills unless told not to, places atolls, softens terrain under jungle.
+  Knobs: rainfall and the per-feature percents and grains.
+- Override single methods (`AddIceAtPlot`, `AddAtolls`) or replace the stage.
+- Hard limit: the database decides which features may sit on which terrain (§7.2); the raw setter
+  does no checking at all, which is how natural wonders get placed.
+
+**Starts and resources (stage 8).** This is a library you configure, not a stage you rewrite.
+Six calls in a fixed order on one instance (§8.1):
+
+| Call | What it decides | Main arguments / hooks |
+|---|---|---|
+| `Create()` | resource ids, impact layers, config constants | `__CustomInit` (instance-level overrides) |
+| `GenerateRegions(args)` | one region per civ by method: biggest landmass, continental (with automatic fallbacks), one rectangle, self-defined rectangle; resource density | `method`, `resources`, Communitu-style split settings; `CustomOverride()` runs at the end (§8.2) |
+| `ChooseLocations(args)` | a start per region, poorest regions first | `mustBeCoast`, food/production thresholds (§8.3) |
+| `BalanceAndAssign()` | normalises each start, then an optimal assignment of civs to regions by database start bias | geography only (§8.4) |
+| `PlaceNaturalWonders()` | count by map size, candidates from a database table, outside the start impact radius | `GetNumNaturalWondersToPlace` (§8.5) |
+| `PlaceResourcesAndCityStates()` | luxury roles per region, city states split between civ regions and empty land, luxuries, strategics, bonuses, tile fix-ups, final area recalculation | per-step methods (`PlaceFish`, `PlaceBonusResources`, ...), `__InitLuxuryWeights`, city-state count methods (§8.6, §8.7) |
+
+Customisation hooks, broad to narrow, are in §8.8. The one hard rule: nothing may recalculate
+areas while the library runs, because regions are keyed by area or landmass id.
+
+### O.3 The seven reference archetypes, stage by stage
+
+| Script | Plot types | Terrain | Rivers and lakes | Features | Starts and resources |
+|---|---|---|---|---|---|
+| **Continents** | FractalWorld subclass. Grain 1 or 2 rerolled per attempt, optional rift grain, center rift carved, rejects until the biggest area is at most 58 % of land. Sea 67/72/76. | Stock | Stock | Stock. Calls the feature pass with no argument, so under VP coastal mountains become hills. | Continental method, default thresholds. |
+| **Small Continents** | FractalWorld, grain 3, sea 69/75/80, extra mountains, 1.5x plates, tectonic islands. No retry. | Stock | Stock | Stock, coastal mountains removed. | Continental method, coastal starts forced, offshore-expansion AI hint. |
+| **Archipelago** | FractalWorld, grain 4, sea 72/78/83, 2x plates, tectonic islands. Coast expansion dice 10/4/4 for wide shelves. | Stock | Stock | Stock, coastal mountains removed. | Rectangular method ignoring landmasses, coastal starts forced, lowered food and production thresholds, naval AI hint. |
+| **Oval** | Own smaller grid. MultilayeredFractal with an analytic ellipse for land, a bays fractal eroding outside a cohesion ellipse, one tectonics pass. | Stock | Stock | Stock, coastal mountains removed. | Biggest-landmass method. |
+| **Terra** (VP) | Own larger grid. MultilayeredFractal with a hand-laid world plan: a big Old World rectangle, a New World, a third continent, two subcontinents, hemispheres flipped by dice, then tectonics with islands. | Stock | Stock | Stock, coastal mountains removed. | Biggest-landmass method so every civ starts on the Old World. Class overrides put up to two thirds of city states in empty land and raise random and world luxury targets for the bigger map. |
+| **Continental Drift** (VP) | Own grid. Replaces the FractalWorld generator wholesale: about 40 Voronoi plates with mass and velocity, two polar plates filled with water, plates typed continental, fractal, island, ocean or deep ocean to hit a land target, boundaries classified as collision, rift or transform, optional deep-ocean rift columns, map seam moved to a water column, value-noise heightmaps. Fills every lake it produced back to land. Custom coast pass. | Stock, plus a recalculation and debug dumps. | Stock rivers. Custom blob lakes of one to five plots, count scaled by size and rainfall, kept out of the polar fifths. | FeatureGenerator with heavy settings: jungle 67, forest 45, marsh 18, oasis 15, coarser grains. Keeps coastal mountains. Overrides ice to thin it out and overrides atolls. | Method chosen by option, default continental. Coastal forcing by option. AI hint from the biggest area's share. |
+| **Communitu_79a** (VP) | Own grid. Everything is computed up front here: twisted Perlin elevation plus a mountain map, arctic rows cleared, vertical ocean rifts in an Atlantic and Pacific pattern, a guaranteed circumnavigation channel, sea-to-ocean connections, small seas filled, Terra-style continent linking, then temperature and rainfall maps and the whole river network. Plot types by percentile thresholds, then island groups stamped from IslandMaker stencils, then coasts. | Own model. Temperature bands times rainfall thresholds give snow, tundra, plains, grass and desert, then a blending pass. | Rivers copied from its junction model, with a plot demoted to hills when a river runs between mountains. Stock lakes disabled. Lakes filled during plot types are restored here, and every river edge touching water is stripped. | Fully custom. Trees and jungle by rainfall percentiles, oasis, extra forest, own ice and atoll rules, polar seas reconnected, flood plains re-added after rivers are final. | Terra-style or continental by option, with split density settings for strategic count, deposit size, bonus and luxury. An instance-level init replaces fertility measurement, wonder count, city states in empty land, strategic and bonus placement, fish, and the top-level resource driver, and adds an island-buffing pass. Own continent art stamping. |
+
+Three patterns fall out of the table:
+
+- **The four vanilla scripts differ only in stage 1 and in the start-plot arguments.** Terrain,
+  rivers, lakes and features are stock for all of them. Their very different feel comes from grain,
+  sea level and the region method alone.
+- **The VP scripts re-author stages in proportion to how much geography they model.** Terra changes
+  only the land plan and a few city-state and luxury numbers. Continental Drift rewrites landform
+  and lakes and tunes features. Communitu replaces every geography stage with one coherent model,
+  computed in a single pass before any plot is written, and reaches deep into the start-plot library.
+- **Nobody rewrites the start-plot pipeline's order.** Even Communitu keeps the six calls and swaps
+  individual methods. That library encodes the spacing, luxury and wonder invariants measured in
+  §12, which is why those metrics barely move between archetypes while land share, landmass count
+  and coastline do.
+
+The archetype signatures in §12.4 map directly onto these choices: Archipelago's high coast share
+comes from its coast dice, Terra's distant city states from the two-thirds-in-empty-land override,
+Continental Drift's forest and marsh from its feature percents, and Communitu's river density from
+its junction model.
 
 ---
 
@@ -404,6 +550,29 @@ end
 Terrain and Feature generators **ignore them** and compute latitude from `y` alone (§5).
 
 Odd widths are fine. Communitu uses 79×53 and 69×46 (`VPMS\Communitu_79a.lua:1395-1402`).
+
+### 3.5 Harness-only numeric overrides (`--define`)
+
+`CustomOptions` are discrete menu entries, which is the wrong shape for tuning a continuous knob
+(a land fraction, a fractal grain, a ridge weight). The c5maps harness has a side channel for that:
+`python host/c5gen.py MyMap --define W=0.25 --define name=abc` sets a global table
+`C5MAPS_DEFINES` (here `{ W = 0.25, name = "abc" }`) before the script's top-level code runs.
+Values parse as int, else float, else `true`/`false` → boolean, else string; the run log records
+`[c5maps] defines: W=0.25, name=abc` (keys in byte order). Without `--define` the global is nil.
+(The `and ... or` idiom below cannot carry a `false` define; test `~= nil` for boolean knobs.)
+
+This is a c5maps convenience, not a game feature: in Civ V `C5MAPS_DEFINES` is always nil. So the
+script must always fall back to its option-derived value, and then the same file ships unchanged:
+
+```lua
+local landPct = ({ 0.30, 0.38, 0.46 })[Map.GetCustomOption(2)] or 0.38
+local W = (C5MAPS_DEFINES and C5MAPS_DEFINES.W) or landPct
+```
+
+Read it inside the generation functions (or at top level; it is set before the chunk loads). Use it
+to sweep a parameter numerically while tuning (`for w in 0.2 0.25 0.3 ...`, compare metrics per run;
+`host/sheet.py --run "w=0.2|--define W=0.2" ...` puts the runs side by side, §11.2),
+then bake the chosen value into the options table. Do not use it for anything a player should pick.
 
 ---
 
@@ -1387,6 +1556,12 @@ most damaging come first.
 7. **World age: value 1 = 3 billion years (young, more mountains)** (§3.2).
 8. `IsTropical(y)` reads option 2 as rainfall, but option 2 is temperature in standard scripts
    (`CP\MapmakerUtilities.lua:785`).
+8. **The first `Map.Rand` after seeding with a small seed is 0.** `CvRandom::get` computes
+   `((A*seed + C) >> 16) * n / 2^32` with `A = 1103515245`; for seed < ~1e5 the first draw is below
+   `n` for every realistic `n`, so it floors to 0. The game seeds with a large random number and
+   never shows this; the harness's `--seed 1..50` does (every script's first random decision is
+   deterministic there). Use seeds like 100001 under c5maps when the first draw matters, or draw
+   something unimportant first.
 
 ### 10.5 Lifecycle and environment
 
@@ -1653,6 +1828,19 @@ happen the same way in game, not harness artefacts.
 - **Headless iteration.** This repo's harness (`DESIGN.md`) runs scripts outside the game with the
   same VP Lua libraries and renders PNG/ASCII. Use it for fast loops, then confirm in game. The game
   is the source of truth for anything the harness only approximates.
+- **Contact sheets.** `python host/sheet.py <script> --size standard --seeds 1,2,3,4,5 --layer mask`
+  runs the script once per seed in parallel and composes one labelled PNG (default
+  `out/sheets/<script>_<size>_seeds1-2-3-4-5.png`) with land %, landmasses >= 30 tiles, largest
+  landmass % and 1-5 tile islets under each tile. To compare option or `--define` values (§3.5) use
+  `--run "label|<c5gen args>"` per tile (`--common "<args>"` is appended to every run); `--run`
+  together with `--seeds` gives a runs x seeds grid; `--spec file.json` takes
+  `[{"label": ..., "args": [...]}, ...]`. `--grep REGEX` prints the first matching `.log` lines
+  under each tile (e.g. your script's own diagnostic print), c5gen warnings are shown in orange, and a
+  failed run becomes a red tile with the Lua error. Each run keeps its dump in
+  `<sheet stem>/runs/<label>/`, `summary.json` sits beside them, `--reuse` skips unchanged runs, and
+  the exit status is 1 if any run failed. Tiles use the `plain` layer by default; `--layer mask`
+  (water / flat / hills / mountains only) is the one to judge landmass shape. The same layer and
+  `--no-starts` (hide start markers and civ names) are available in `render/render_map.py`.
 - **Numeric sanity check.** `python host/metrics.py compare <dump>.json --archetype <closest>`
   compares a harness dump against the measured ranges of seven community scripts (§12). Run it on
   several seeds before testing in game.

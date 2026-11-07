@@ -28,6 +28,10 @@ python host/c5gen.py <script> --seed 42 --png --ascii
   `--option 4=2 --option 1=3` sets them (1-based IDs and values; the last value is usually "Random").
   A bad ID or out-of-range value prints `c5gen: warning: ...` on stderr and is still passed
   through (the run continues, as the game would), so read stderr after typing option numbers.
+- `--define KEY=VALUE` (repeatable) sets the global table `C5MAPS_DEFINES[KEY]` before the script
+  loads (int/float/true/false/string; nil without `--define`, and always nil in the game). Use it to
+  sweep a numeric knob while tuning, with a fallback so the file ships unchanged:
+  `local W = (C5MAPS_DEFINES and C5MAPS_DEFINES.W) or optionDerivedValue` (guide §3.5).
 - Outputs in `out/<name>/<name>_<size>_<seed>.{json,txt,log}` plus `.png` with `--png`:
   `.png` = hex render (look at it with the Read tool), `.txt` = ASCII map + stats block,
   `.log` = every `print()` plus include resolution and per-phase timing, `.json` = the dump.
@@ -35,7 +39,10 @@ python host/c5gen.py <script> --seed 42 --png --ascii
   (stream `print()` live), `--timing`, `--profile`, `--rng-trace`, `--areas literal|floodfill` (§6),
   `--runtime luajit21` (≈7× faster, not RNG-identical to the game's Lua 5.1), `--out DIR`.
 - Re-render a dump: `python render/render_map.py out/x/x_standard_42.json --layer areas --hex 16`
-  (layers: terrain, plain, areas, continents, elevation, resources, startbias; writes `<stem>_<layer>.png`).
+  (layers: terrain, plain, mask, areas, continents, elevation, resources, startbias; writes `<stem>_<layer>.png`).
+  `mask` is pure shape review: water / flat / hills / mountains in four flat colours, no rivers, features,
+  resources or terrain. `--no-starts` hides start markers and civ / city-state names; `--no-grid` drops
+  hex outlines (`render_png(..., starts=False, grid=False)` from Python).
 
 A Lua error prints the full traceback and exits 1 (the `.log` is still written). "c5maps:
 unimplemented Map.Foo" means the fake client lacks a method: add it to `engine/` (port it from
@@ -48,6 +55,11 @@ stub it silently. No shipped script hits one today.
    `GenerateMap` phase order (plots → coasts → terrain → rivers → lakes → features → start plots).
    `python host/c5gen.py .claude/skills/c5-mapgen/templates/Template_Map.lua --size duel --png` runs as is.
 2. Run at standard with 3–5 seeds, look at the PNGs and the stats block. Then duel and huge.
+   - To see several seeds, `--option` values or `--define` values side by side, use the contact
+     sheet runner: `python host/sheet.py MyMap.lua --seeds 1,2,3,4,5 --layer mask` or
+     `--run "thin|--define W=0.18" --run "wide|--define W=0.36"` (runs in parallel, one PNG with
+     land %, landmasses, largest landmass and islets under each tile; `--grep REGEX` adds matching
+     log lines; failed runs show as red tiles with the error). Guide §11.2.
 3. Check the numbers against community-normal ranges:
    `python host/metrics.py compare out/<name>/<name>_standard_1.json --archetype Continents`
    (archetypes: Communitu, Continental_Drift, Continents, SmallContinents, Terra, Oval, Archipelago).
@@ -82,6 +94,7 @@ stub it silently. No shipped script hits one today.
 
 | Need | Read |
 |---|---|
+| The big picture first: stage order and why, stock generator per stage and how far it can be replaced, the seven archetypes compared stage by stage | `docs/mapscript-guide.md`, the "Overview" chapter before §0 |
 | How to write a script: lifecycle, template, options, plot/terrain/river/feature generation, VP start-plot system, reusable patterns, gotchas, checklist, normal metric ranges (§12) | `docs/mapscript-guide.md` |
 | Exact semantics of every engine call (Map, Plot, Area, Fractal, GameInfo, Game, PreGame), hex math, areas/lakes/rivers algorithms, headless player model, open questions (§17–18) | `docs/engine-api.md` |
 | Which installed scripts run, which fail and why, workarounds | `docs/script-compat.md` |
@@ -96,6 +109,10 @@ stub it silently. No shipped script hits one today.
   Use `Map.PlotDirection(x, y, dir)` / `Map.PlotXYWithRangeCheck` instead of hand-rolled offsets.
 - `Map.Rand(n, "reason")` returns `[0, n)` and the string is mandatory. Never use `math.random`
   for anything that should be reproducible from the map seed.
+- **Small harness seeds make the first `Map.Rand` of a run return 0** (CvRandom: first draw is
+  `(A*seed+C) >> 16`, tiny for seed < ~1e5; the game always seeds with a large number). Use
+  `--seed 100001`-style seeds when the first random decision matters (an orientation, a layout
+  pick), or make that decision after other draws.
 - `Map.GetCustomOption(i)`: `i` is the 1-based position in **your** `CustomOptions`; values are
   1-based; "Random" is just the last value and you must resolve it yourself.
 - `SetPlotTypes(t)` wants a **1-based** table, `SetTerrainTypes(t)` a **0-based** one.
@@ -147,7 +164,7 @@ stub it silently. No shipped script hits one today.
 
 - Regression (bash; in PowerShell 5.1 replace `&&` with `;`):
   `python tests/run_lua_tests.py && python tests/test_cli.py && python tests/test_sweep_quick.py`
-  (≈ 1 min). Also `python tests/test_metrics.py` and `python tests/test_render.py`.
+  (≈ 1 min). Also `python tests/test_metrics.py`, `python tests/test_render.py` and `python tests/test_sheet.py`.
 - Full compatibility sweep (slow, rewrites `docs/script-compat.md`): `python tests/sweep.py`, then
   `python tests/sweep.py --write-compat`.
 - Re-baseline the metrics after a VP update (≈ 7 min with 10 workers, 700 runs):
