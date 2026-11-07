@@ -806,6 +806,53 @@ These were found while building `engine/` and running the acceptance scripts; ea
 * **`erase()` order quirk**: `setFeatureType(NO_FEATURE)` runs *before* the river flags are cleared, so turning a river desert plot into ocean leaves `FEATURE_FLOOD_PLAINS` on the new water plot (the VP flood-plains rule fires). Reproduced literally.
 * **No `GetMapInitData` table → latitudes 0/0** (`CvMap::reset` keeps the fresh values), so `plot:GetLatitude()` is 0 everywhere for scripts like vanilla Pangaea/Continents. Wrap defaults stay X=true, Y=false.
 * **Literal areas make vanilla `Pangaea.lua` retry its continent fractal ~90 times at standard size** (seed 42: 93 `SetPlotTypes` calls, 16.7 M map-RNG draws, ~16 s under lua51), because its "biggest area >= 84 % of land" test rarely passes when areas are scan-order fragments; with `--areas floodfill` it accepts on attempt 1. This is a cheap in-game check for Ambiguity A1: time a standard Pangaea generation / count Lua.log lines "Setting Plot Types".
-* **Vanilla scripts that override VP-incompatible ASP methods fail under VP** (script bugs, not harness): `Assets\Maps\Lakes.lua` / `Highlands.lua` (`CanPlaceCityStateAt` reads `self.cityStateData`), `Assets\Maps\Great_Plains.lua` (`AssignLuxuryRoles` reads `iNumTypesUnassigned`), `DLC\Expansion\Maps\Europe.lua` (`naturalWondersData`), `DLC\Expansion\Maps\Hemispheres.lua` (sets `self.method = 3` in its own `GenerateRegions`; VP reads 3 as a landmass division and indexes `self.landmass_areas[areaID]` = nil). VP ships working copies of Lakes, Highlands, Europe, Terra, Great_Plains_XP in `(2) Vox Populi\Mapscripts`.
+* **Vanilla scripts that override VP-incompatible ASP methods fail under VP** (script bugs, not harness): `Assets\Maps\Lakes.lua` / `Highlands.lua` (`CanPlaceCityStateAt` reads `self.cityStateData`), `Assets\Maps\Great_Plains.lua` (`AssignLuxuryRoles` reads `iNumTypesUnassigned`), `DLC\Expansion\Maps\Europe.lua` (`naturalWondersData`), `DLC\Expansion\Maps\Hemispheres.lua` (*corrected by the sweep*: with exactly two teams and option 6 = 1 it keeps `self.method = 3` and works under VP (`--teams 2`); in a free-for-all its vanilla branch sets `self.method = 2` (CONTINENTAL) without setting `self.bArea`, so VP treats the area ids in `regionData[5]` as landmass ids and indexes `self.landmass_areas[areaID]` = nil, or, when it survives, assigns two regions the same start plot). VP ships working copies of Lakes, Highlands, Europe, Terra, Great_Plains_XP in `(2) Vox Populi\Mapscripts`.
 * **`pairs()` order matters for RNG parity**: CP `AddRivers` iterates `pairs(adjacentPlotFunctions)` (integer keys 0..5) and draws `Map.Rand` inside the loop. Lua 5.1 and LuaJIT hash numbers differently, so `--runtime luajit21` (~7x faster) diverges from `lua51` from AddRivers onwards. Use lua51 for anything compared against the game.
 * `SetPlotType(..., bRecalculate=true)` (incremental area patch, `CvPlot.cpp:7317`) is not used by any consumer with `true`; the harness raises an error if it is.
+
+### 18.1 Full-sweep findings (tests/sweep.py, 2026-11-07; table in `docs/script-compat.md`)
+
+* **No map script calls the still-unimplemented symbols** (`Plot:CanHaveResource`, `Plot:GetNearestLandArea`,
+  `Plot:SeeFromLevel`, `Map.DoPlaceNaturalWonders`, `SetPlotType(..., true)`, `CanHaveImprovement` with a player),
+  neither do the CP/VP includes they pull in (grep over all 87 scripts + both mods); they stay as clear errors.
+  Every failure in the sweep (all sizes, every non-default option value at duel) is inside script code.
+* **More vanilla scripts that override VP-incompatible ASP methods** (class b, same failure in game):
+  `CanPlaceCityStateAt` reading `self.cityStateData` (VP keeps it as `self.impactData[ImpactLayers.LAYER_CITY_STATE]`;
+  CP's own `Includes/AssignStartingPlots.lua` still has `cityStateData`, so these work with CP alone):
+  Assets `Four_Corners`, `Highlands`, `InlandSea`, `Lakes`, `North_vs_South`, `Ring`, `Skirmish`, `West_vs_East`,
+  Expansion and CP `Boreal`, CP `Highlands`, DLC_SP_Maps_3 `Script_Random_China`.
+  `AssignLuxuryRoles` reading `self.iNumTypesUnassigned`: Assets `Great_Plains`, DLC_SP_Maps `Amazon`, Expansion
+  `Amazon_XP`. `self.naturalWondersData`: Expansion `Europe`, `Great_Plains_XP`. Expansion `Frontier`
+  (`PlaceLuxuries` uses `self.luxury_low_fert_compensation`, a local in VP). Expansion `Arborea`/`Rainforest`
+  (their `__InitLuxuryWeights` defines region types 1-8; VP adds REGION_MOUNTAIN = 9 / REGION_SNOW = 10 for civs
+  with that start bias -> `ipairs(nil)` in `AssignLuxuryToRegion`; only fails when such a civ is picked).
+  The older `Communitu_79a.lua` in `My Games\Maps` and `Assets\Maps` calls `ASP:Plot_GetFertility`, which exists
+  nowhere (VP/CP have the global `Plot_GetFertility`); it runs with option 16 = 1 (do not override ASP).
+* **Teams.** `GetPlayerAndTeamInfo` (CP MapmakerUtilities) derives `bTeamGame` from
+  `(Game.CountCivTeamsEverAlive() - number of city-states) < number of majors`; `CvGame::countCivTeamsEverAlive`
+  counts every ever-alive team below MAX_CIV_TEAMS, city-state teams included. The harness now models teams:
+  `--teams N` puts major player i on team i % N (team id = lowest member id); `Player:GetTeam`,
+  `Team:GetNumMembers/IsAlive/IsMinorCiv` and the count follow it. Team branches of Hemispheres, North_vs_South,
+  West_vs_East, Four_Corners (`--teams 4`), Europe, Frontier, Ring, Skirmish, Large_Islands all run.
+* **WorldBuilder hybrids** (`DLC_SP_Maps_2/3\WB_Script_*.lua`) read `plot:GetPlotType()` of a `.Civ5Map` the exe
+  loads before the script (the map's `ScriptName`), so they are unsupported headless (the sweep skips them;
+  detection = `WB_Script_` prefix or `Map.LoadMap` / `.Civ5Map` in the source).
+* **Localization.** `Localization-Merged.db` in the cache does not contain VP's
+  `Database Changes/Text/en_US/NewMapscriptText.xml` rows (e.g. `TXT_KEY_MAP_PLAYERS_START_IN`); the host now also
+  reads `<Row Tag=..><Text>` from the mods' en_US text XML for keys the script references and all `TXT_KEY_MAP*`.
+* **Not DLL invariants** (the validator reports them as soft warnings, not failures): `CvPlot::setResourceType`
+  stores whatever quantity it is given (Lua nil -> 0), so quantity >= 1 is not guaranteed; `setPlotType` never
+  clears a feature, so a script that raises a mountain after `AddFeatures` leaves e.g. jungle on a mountain
+  (seen once in Hemispheres); river flags on a water plot are possible because `setXOfRiver` does not check the
+  plot type (never seen). Hard invariants checked: land terrain is not coast/ocean, water terrain is coast/ocean,
+  lake flag only on water, start plots unique and on land, coast terrain exists whenever the map has water
+  (vp:Skirmish with default options is an all-land map).
+* **Area mode sensitivity** (literal vs floodfill, standard, seeds 1-2): identical output for vp `Four_Corners`,
+  `Great_Plains_XP`, `InlandSea`, `Lakes`, `North_vs_South`, `West_vs_East` (and some seeds of Donut, Amazon_XP,
+  Boreal, Highlands, Script_Random_China); 10-60 plots differ for most scripts (start-plot normalisation and
+  CS/resource placement follow area ids; this includes the reference scripts Communitu, Continental_Drift, Terra,
+  Oval, SmallContinents and Archipelago);
+  the whole map differs for the scripts with a "biggest area >= x % of land" retry loop: Pangaea, PangaeaPlus,
+  Sandstorm, Shuffle, Tilted_Axis, exp1 Arborea/Rainforest, and Continents/ContinentsPlus on some seeds
+  (literal areas need up to 7x more map-RNG draws there). Hemispheres in FFA mode crashes or produces
+  duplicate start plots depending on seed and area mode. These are the cheapest in-game probes for Ambiguity A1.

@@ -146,10 +146,14 @@ function M.install(S, env)
 	local minorCivId = (GI.byType("Civilizations").CIVILIZATION_MINOR or {}).ID or -1
 	local barbCivId = (GI.byType("Civilizations").CIVILIZATION_BARBARIAN or {}).ID or -1
 	local playerSlots = {}
-	for i = 0, MAX_PLAYERS - 1 do playerSlots[i] = { id = i, alive = false, civ = -1, minor = false, minorType = -1 } end
+	for i = 0, MAX_PLAYERS - 1 do playerSlots[i] = { id = i, team = i, alive = false, civ = -1, minor = false, minorType = -1 } end
+	-- cfg.teams = N groups the majors round-robin into teams 0..N-1 (player i -> team i % N); the team id is
+	-- then the lowest member's player id, as in an un-modified staging room.  Default: team id = player id.
+	local nTeams = cfg.teams and toint(cfg.teams) or 0
 	for i, civ in ipairs(civs) do
 		local slot = playerSlots[i - 1]
 		slot.alive, slot.civ, slot.civType = true, idOf("Civilizations", civ), civ
+		if nTeams > 0 then slot.team = (i - 1) % nTeams end
 		local row = GI.byID("Civilizations")[slot.civ]
 		slot.name = row and row.ShortDescription or civ
 	end
@@ -182,7 +186,7 @@ function M.install(S, env)
 	function PL:IsHuman() return self._pid == 0 and slot(self).alive end
 	function PL:IsMinorCiv() return slot(self).minor end
 	function PL:IsBarbarian() return slot(self).barbarian or false end
-	function PL:GetTeam() return self._pid end
+	function PL:GetTeam() return slot(self).team end
 	function PL:GetCivilizationType() return slot(self).civ end
 	function PL:GetMinorCivType() return slot(self).minorType end
 	function PL:GetMinorCivTrait() return slot(self).minor and (slot(self).trait or -1) or -1 end
@@ -218,12 +222,21 @@ function M.install(S, env)
 	local TeamMeta = { __index = TeamMethods }
 	local Teams = {}
 	for i = 0, MAX_PLAYERS - 1 do Teams[i] = setmetatable({ _tid = i }, TeamMeta) end
+	local function teamMembers(t)
+		local out = {}
+		for i = 0, MAX_PLAYERS - 1 do
+			local sl = playerSlots[i]
+			if sl.alive and sl.team == t then out[#out + 1] = sl end
+		end
+		return out
+	end
+	S.teamMembers = teamMembers
 	function TeamMethods:GetID() return self._tid end
-	function TeamMethods:IsAlive() return playerSlots[self._tid].alive end
-	function TeamMethods:IsEverAlive() return playerSlots[self._tid].alive end
-	function TeamMethods:IsMinorCiv() return playerSlots[self._tid].minor end
-	function TeamMethods:IsBarbarian() return playerSlots[self._tid].barbarian or false end
-	function TeamMethods:GetNumMembers() return playerSlots[self._tid].alive and 1 or 0 end
+	function TeamMethods:IsAlive() return #teamMembers(self._tid) > 0 end
+	function TeamMethods:IsEverAlive() return #teamMembers(self._tid) > 0 end
+	function TeamMethods:IsMinorCiv() local m = teamMembers(self._tid)[1]; return m and m.minor or false end
+	function TeamMethods:IsBarbarian() local m = teamMembers(self._tid)[1]; return m and m.barbarian or false end
+	function TeamMethods:GetNumMembers() return #teamMembers(self._tid) end
 	function TeamMethods:IsHasTech() return false end
 	env.Teams = Teams
 
@@ -273,7 +286,8 @@ function M.install(S, env)
 	end
 	function Game.CountCivTeamsEverAlive()
 		local c = 0
-		for i = 0, (D.MAX_CIV_TEAMS or 63) - 1 do if playerSlots[i].alive then c = c + 1 end end
+		-- CvGame::countCivTeamsEverAlive: teams 0..MAX_CIV_TEAMS-1 (majors and city-states) that are ever alive
+		for i = 0, (D.MAX_CIV_TEAMS or 63) - 1 do if #teamMembers(i) > 0 then c = c + 1 end end
 		return c
 	end
 	function Game.CountCivPlayersAlive()

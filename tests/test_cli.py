@@ -17,8 +17,9 @@ PER_PLOT = ("plot_type", "terrain", "feature", "resource", "resource_qty", "rive
             "area", "lake", "continent")
 
 
-def validate_dump(d):
-    """Assert the dump follows the DESIGN.md map dump contract; returns the plot count."""
+def validate_dump(d, warnings=None):
+    """Assert the dump follows the DESIGN.md map dump contract; returns the plot count.
+    Soft findings (legal in the DLL but suspicious) are appended to `warnings` when a list is given."""
     for k in ("script", "seed", "world_size", "width", "height", "wrap_x", "wrap_y", "terrain_types",
               "feature_types", "resource_types", "resource_class", "feature_natural_wonder", "areas",
               "start_plots", "log") + PER_PLOT:
@@ -64,8 +65,103 @@ def validate_dump(d):
                     nx %= W
                 if 0 <= nx < W and 0 <= ny < H:
                     assert d["plot_type"][ny * W + nx] == 3, "ocean at (%d,%d) touches land" % (x, y)
-    assert coast in d["terrain"]
+    if 3 in d["plot_type"]:
+        assert coast in d["terrain"], "map has water but no coast terrain"
+
+    # --- per-plot semantic invariants (sweep hardening) ---
+    water_ter = {coast, ocean}
+    pt, ter = d["plot_type"], d["terrain"]
+    for i in range(n):
+        x, y = i % W, i // W
+        if pt[i] == 3:
+            assert ter[i] in water_ter, "water plot (%d,%d) has non-water terrain %s" % (
+                x, y, d["terrain_types"][ter[i]])
+        else:
+            assert ter[i] not in water_ter, "land plot (%d,%d) has water terrain %s" % (
+                x, y, d["terrain_types"][ter[i]])
+            assert d["lake"][i] == 0, "lake flag on land plot (%d,%d)" % (x, y)
+    starts = set()
+    for sp in d["start_plots"]:
+        k = (sp["x"], sp["y"])
+        assert 0 <= sp["x"] < W and 0 <= sp["y"] < H, "start plot off map %r" % (k,)
+        assert k not in starts, "two players share start plot %r" % (k,)
+        starts.add(k)
+    for i in range(n):
+        if d["resource"][i] < 0:
+            continue
+        if d["resource_qty"][i] < 1:
+            # CvPlot::setResourceType stores whatever quantity it is given (Lua nil -> 0), so this is not a
+            # DLL invariant; report it softly.
+            _warn(warnings, "resource %s at (%d,%d) has quantity %d" % (
+                d["resource_types"][d["resource"][i]], i % W, i // W, d["resource_qty"][i]))
+    for k in ("river_w", "river_nw", "river_ne"):
+        for i, v in enumerate(d[k]):
+            if v != -1 and pt[i] == 3:
+                # Possible in the DLL (setXOfRiver does not check the plot type, and the CP river code
+                # only walks land), so a soft finding: the renderer draws it on a water hex.
+                _warn(warnings, "%s flag on water plot (%d,%d)" % (k, i % W, i // W))
+    _check_features(d, warnings)
     return n
+
+
+def _warn(warnings, msg):
+    if warnings is not None and len(warnings) < 200:
+        warnings.append(msg)
+
+
+_FEATURE_RULES = None
+
+
+def _feature_rules():
+    """{feature Type: (set of terrain Types, RequiresFlatlands, is natural wonder)} from the game DB."""
+    global _FEATURE_RULES
+    if _FEATURE_RULES is None:
+        _FEATURE_RULES = {}
+        try:
+            import sqlite3
+            sys.path.insert(0, os.path.join(ROOT, "host"))
+            import paths
+            con = sqlite3.connect("file:" + paths.DB.replace("\\", "/") + "?mode=ro", uri=True)
+            tb = {}
+            for f, t in con.execute("SELECT FeatureType, TerrainType FROM Feature_TerrainBooleans"):
+                tb.setdefault(f, set()).add(t)
+            for f, flat, nw, pnw in con.execute(
+                    "SELECT Type, RequiresFlatlands, NaturalWonder, PseudoNaturalWonder FROM Features"):
+                _FEATURE_RULES[f] = (tb.get(f, set()), bool(flat), bool(nw) or bool(pnw))
+            con.close()
+        except Exception:   # noqa: BLE001  (no DB: skip the check)
+            _FEATURE_RULES = {}
+    return _FEATURE_RULES
+
+
+def _check_features(d, warnings):
+    """Soft CanHaveFeature check (terrain booleans, mountains, RequiresFlatlands) for non-wonder features.
+    Map scripts call SetFeatureType directly, which does not consult canHaveFeature, so violations are
+    reported as warnings, not failures."""
+    if warnings is None:
+        return
+    rules = _feature_rules()
+    if not rules:
+        return
+    W = d["width"]
+    for i, f in enumerate(d["feature"]):
+        if f < 0:
+            continue
+        ft = d["feature_types"][f]
+        r = rules.get(ft)
+        if r is None or r[2]:
+            continue
+        terrains, flat, _ = r
+        tt = d["terrain_types"][d["terrain"][i]]
+        why = None
+        if d["plot_type"][i] == 0:
+            why = "on a mountain"
+        elif tt not in terrains:
+            why = "on %s" % tt
+        elif flat and d["plot_type"][i] == 1:
+            why = "on hills (RequiresFlatlands)"
+        if why:
+            _warn(warnings, "%s at (%d,%d) %s" % (ft, i % W, i // W, why))
 
 
 def test_pangaea_duel():
@@ -100,6 +196,44 @@ def test_lua_error_exit_code():
                         "--out", OUT, "--no-render", "--quiet"], capture_output=True, text=True)
     assert r.returncode != 0
     assert "bad argument #2 to 'Rand'" in r.stderr and "stack traceback" in r.stderr
+
+
+def test_teams_and_option_warning():
+    os.makedirs(OUT, exist_ok=True)
+    cmd = [sys.executable, os.path.join(ROOT, "host", "c5gen.py"), "Continents", "--size", "duel", "--seed", "3",
+           "--civs", "4", "--teams", "2", "--option", "9=1", "--option", "4=9", "--out", OUT, "--no-render", "--quiet"]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "declares no CustomOptions[9]" in r.stderr and "value outside 1..4" in r.stderr, r.stderr
+    with open(os.path.join(OUT, "Continents_duel_3.json"), encoding="utf-8") as f:
+        d = json.load(f)
+    validate_dump(d)
+    majors = sorted((s["player"], s["team"]) for s in d["start_plots"] if not s["minor"])
+    assert majors == [(0, 0), (1, 1), (2, 0), (3, 1)], majors
+
+
+def test_validator_soft_warnings():
+    d = synthetic_ok_dump()
+    w = []
+    validate_dump(d, w)
+    assert w == [], w
+    d["resource_qty"][d["resource"].index(next(r for r in d["resource"] if r >= 0))] = 0
+    validate_dump(d, w)
+    assert any("quantity 0" in x for x in w), w
+    bad = dict(d, lake=list(d["lake"]))
+    land = d["plot_type"].index(2)
+    bad["lake"][land] = 1
+    try:
+        validate_dump(bad)
+    except AssertionError as e:
+        assert "lake flag on land" in str(e)
+    else:
+        raise AssertionError("lake flag on land not caught")
+
+
+def synthetic_ok_dump():
+    with open(os.path.join(OUT, "Pangaea_duel_7.json"), encoding="utf-8") as f:
+        return json.load(f)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 Usage:
   python host/c5gen.py <script name or path> [--size duel|tiny|small|standard|large|huge] [--seed N]
-         [--civs N] [--city-states N] [--civ-list CIVILIZATION_X,CIVILIZATION_Y]
+         [--civs N] [--city-states N] [--teams N] [--civ-list CIVILIZATION_X,CIVILIZATION_Y]
          [--option IDX=VALUE ...] [--list-options] [--era ERA_ANCIENT] [--handicap HANDICAP_PRINCE]
          [--out out/<name>] [--png] [--ascii] [--stats] [--no-render] [--areas literal|floodfill]
          [--runtime lua51|luajit21] [--timing] [--quiet]
@@ -143,13 +143,13 @@ def choose_players(con, size_type, n_civs, n_cs, seed, civ_list=None):
 
 def lookup_texts(script_path):
     """TXT_KEY_* strings referenced by the script, for option names in --list-options."""
-    if not os.path.exists(paths.LOC_DB):
-        return {}
+    with open(script_path, encoding="utf-8", errors="replace") as f:
+        keys = sorted(set(re.findall(r"TXT_KEY_[A-Za-z0-9_]+", f.read())))
+    out = {}
     try:
-        with open(script_path, encoding="utf-8", errors="replace") as f:
-            keys = sorted(set(re.findall(r"TXT_KEY_[A-Za-z0-9_]+", f.read())))
+        if not os.path.exists(paths.LOC_DB):
+            raise OSError("no localization DB")
         con = sqlite3.connect("file:" + paths.LOC_DB.replace("\\", "/") + "?mode=ro", uri=True)
-        out = {}
         for i in range(0, len(keys), 500):
             chunk = keys[i:i + 500]
             q = "SELECT Tag, Text FROM LocalizedText WHERE Language='en_US' AND Tag IN (%s)" % ",".join("?" * len(chunk))
@@ -159,9 +159,46 @@ def lookup_texts(script_path):
         for tag, text in con.execute("SELECT Tag, Text FROM LocalizedText WHERE Language='en_US' AND Tag LIKE 'TXT_KEY_MAP%'"):
             out.setdefault(tag, text)
         con.close()
-        return out
-    except Exception:
-        return {}
+    except Exception:   # noqa: BLE001
+        pass
+    # Mod text (e.g. VP's Database Changes/Text/en_US/NewMapscriptText.xml) is not always in the cached
+    # Localization-Merged.db; fill missing keys from the enabled mods' en_US text XML.
+    mt = mod_texts()
+    for k in keys:
+        if k in mt:
+            out.setdefault(k, mt[k])
+    for k, v in mt.items():
+        if k.startswith("TXT_KEY_MAP"):
+            out.setdefault(k, v)
+    return out
+
+
+_MOD_TEXTS = None
+
+
+def mod_texts():
+    """{TXT_KEY: text} from <Row Tag="..."><Text>..</Text></Row> rows in the mods' en_US text XML files."""
+    global _MOD_TEXTS
+    if _MOD_TEXTS is None:
+        _MOD_TEXTS = {}
+        row = re.compile(r'<Row\s+Tag="(TXT_KEY_[^"]+)"\s*>\s*<Text>(.*?)</Text>', re.S)
+        for d in paths.MOD_DIRS:
+            for root, _, fs in os.walk(d):
+                if "text" not in root.lower():
+                    continue
+                for f in fs:
+                    if not f.lower().endswith(".xml"):
+                        continue
+                    try:
+                        with open(os.path.join(root, f), encoding="utf-8", errors="replace") as fh:
+                            txt = fh.read()
+                    except OSError:
+                        continue
+                    if "Language_en_US" not in txt:
+                        continue
+                    for m in row.finditer(txt):
+                        _MOD_TEXTS[m.group(1)] = re.sub(r"\s+", " ", m.group(2)).strip()
+    return _MOD_TEXTS
 
 
 # ------------------------------------------------------------------------------------------------
@@ -236,6 +273,7 @@ def run(args):
         "era": args.era,
         "handicap": args.handicap,
         "civs": civs,
+        "teams": args.teams,
         "minors": minors,
         "map_options": map_options,
         "areas_mode": args.areas,
@@ -254,6 +292,8 @@ def run(args):
     ok, res = init.run(to_lua(L, opts))
     wall = time.perf_counter() - t0
 
+    for w in lua_list(res.warnings):
+        print("c5gen: warning: " + w, file=sys.stderr)
     if args.profile and res.profile:
         print(res.profile)
     timing = []
@@ -334,6 +374,8 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--civs", type=int, default=None)
     ap.add_argument("--city-states", type=int, default=None)
+    ap.add_argument("--teams", type=int, default=None,
+                    help="group the major civs round-robin into N teams (e.g. 2 for Hemispheres/West_vs_East team modes)")
     ap.add_argument("--civ-list", default=None)
     ap.add_argument("--option", action="append", metavar="IDX=VALUE")
     ap.add_argument("--list-options", action="store_true")

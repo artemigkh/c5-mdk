@@ -15,6 +15,7 @@ opts (all optional unless noted):
   world_size      Worlds.Type or ID (default WORLDSIZE_STANDARD)
   climate, sea_level, era, handicap     DB Type strings or IDs
   civs            array of Civilizations.Type (majors, slots 0..)
+  teams           group the majors round-robin into N teams (player i -> team i % N); default team = player
   minors          array of MinorCivilizations.Type (slots 22..)
   map_options     { ["<option index>"] = value } overrides (1-based option index, 1-based value)
   game_options    { GAMEOPTION_X = value }
@@ -145,7 +146,7 @@ local function buildDump(S, opts, logLines)
 		local plot = S.playerStarts[pid]
 		local slot = S.playerSlots[pid]
 		if plot then
-			starts[#starts + 1] = { player = pid, team = pid, x = plot._x, y = plot._y,
+			starts[#starts + 1] = { player = pid, team = slot.team or pid, x = plot._x, y = plot._y,
 				civ = slot.civType or "", name = slot.name or "", minor = slot.minor and true or false }
 		end
 	end
@@ -259,7 +260,7 @@ function M.run(opts)
 			seed = opts.seed or 0, areas_mode = opts.areas_mode, float_to_int = opts.float_to_int,
 			world_size = opts.world_size or "WORLDSIZE_STANDARD", climate = opts.climate, sea_level = opts.sea_level,
 			era = opts.era, handicap = opts.handicap, civs = opts.civs, minors = opts.minors,
-			game_options = opts.game_options, script_name = scriptName,
+			game_options = opts.game_options, script_name = scriptName, teams = opts.teams,
 			activated_mods = opts.activated_mods, mod_entry_points = opts.mod_entry_points,
 		}
 		S = mapmod.newState(GI, cfg)
@@ -297,7 +298,24 @@ function M.run(opts)
 		for _, o in ipairs(optList) do
 			if o.default ~= nil then S.pregame.mapOptions[tostring(o.index)] = o.default end
 		end
-		for k, v in pairs(opts.map_options or {}) do S.pregame.mapOptions[tostring(k)] = v end
+		result.warnings = {}
+		local byIndex = {}
+		for _, o in ipairs(optList) do byIndex[tostring(o.index)] = o end
+		for k, v in pairs(opts.map_options or {}) do
+			k = tostring(k)
+			local o = byIndex[k]
+			local w
+			if not o then
+				w = ("--option %s=%s: the script declares no CustomOptions[%s] (Map.GetCustomOption(%s) still returns %s)"):format(k, tostring(v), k, k, tostring(v))
+			elseif #o.values > 0 and (type(v) ~= "number" or v < 1 or v > #o.values or v ~= math.floor(v)) then
+				w = ("--option %s=%s: value outside 1..%d for '%s'"):format(k, tostring(v), #o.values, tostring(o.name))
+			end
+			if w then
+				result.warnings[#result.warnings + 1] = w
+				log("[c5maps] WARNING: " .. w)
+			end
+			S.pregame.mapOptions[k] = v
+		end
 		if opts.list_options then return end
 
 		-- 2. GetMapInitData(worldSize)
