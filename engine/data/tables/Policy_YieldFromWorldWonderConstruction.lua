@@ -1,0 +1,3 @@
+return {
+{"POLICY_ARTISTIC_GENIUS","YIELD_GOLD",250},
+}

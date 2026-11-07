@@ -1,0 +1,3 @@
+return {
+{"BUILDING_MUGHAL_FORT","YIELD_CULTURE",20},
+}

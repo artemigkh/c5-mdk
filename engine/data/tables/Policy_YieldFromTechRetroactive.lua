@@ -1,0 +1,3 @@
+return {
+{"POLICY_LIBERTY","YIELD_CULTURE",15},
+}

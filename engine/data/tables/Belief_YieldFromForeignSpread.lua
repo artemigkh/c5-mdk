@@ -1,0 +1,3 @@
+return {
+{"BELIEF_PILGRIMAGE","YIELD_TOURISM",15},
+}

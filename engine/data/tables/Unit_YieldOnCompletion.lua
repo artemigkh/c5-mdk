@@ -1,0 +1,3 @@
+return {
+{"UNIT_MIKASA","YIELD_GOLDEN_AGE_POINTS",500},
+}

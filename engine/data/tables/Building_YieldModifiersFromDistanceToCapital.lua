@@ -1,0 +1,3 @@
+return {
+{"BUILDING_KREPOST","YIELD_PRODUCTION",0,1,30},
+}

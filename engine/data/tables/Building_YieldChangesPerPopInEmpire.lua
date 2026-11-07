@@ -1,0 +1,3 @@
+return {
+{"BUILDING_RIALTO_DISTRICT","YIELD_GOLD",34},
+}

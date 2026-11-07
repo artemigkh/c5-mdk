@@ -1,0 +1,3 @@
+return {
+{"IMPROVEMENT_MINE","YIELD_PRODUCTION",0},
+}

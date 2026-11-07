@@ -1,0 +1,4 @@
+return {
+{"BELIEF_JUST_WAR","YIELD_GOLD",2},
+{"BELIEF_JUST_WAR","YIELD_FAITH",2},
+}

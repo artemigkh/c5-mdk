@@ -1,0 +1,3 @@
+return {
+{"POLICY_FINE_ARTS","YIELD_CULTURE",2},
+}

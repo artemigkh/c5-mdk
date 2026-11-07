@@ -1,0 +1,3 @@
+return {
+{"POLICY_TRADITION","YIELD_CULTURE",50},
+}

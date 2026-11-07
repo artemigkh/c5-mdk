@@ -1,0 +1,3 @@
+return {
+{"POLICY_FLOURISHING_OF_ARTS","YIELD_GOLD",4},
+}

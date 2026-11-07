@@ -1,0 +1,3 @@
+return {
+{"POLICY_CARAVANS","RESOURCE_COAL",4},
+}

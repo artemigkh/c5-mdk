@@ -1,0 +1,5 @@
+return {
+{0,"CITYSIZE_SMALL"},
+{1,"CITYSIZE_MEDIUM"},
+{2,"CITYSIZE_LARGE"},
+}

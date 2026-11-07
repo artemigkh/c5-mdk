@@ -1,0 +1,4 @@
+return {
+{"BUILDING_TEOCALLI","YIELD_FAITH",8,false},
+{"BUILDING_GYMNASION","YIELD_CULTURE",25,true},
+}

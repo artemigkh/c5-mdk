@@ -1,0 +1,3 @@
+return {
+{"BELIEF_ANIMISM","PROMOTION_ANIMISM"},
+}

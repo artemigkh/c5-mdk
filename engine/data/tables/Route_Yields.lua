@@ -1,0 +1,4 @@
+return {
+{"ROUTE_ROAD","YIELD_FOOD",0},
+{"ROUTE_RAILROAD","YIELD_FOOD",0},
+}

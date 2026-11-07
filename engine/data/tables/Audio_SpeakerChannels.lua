@@ -1,0 +1,15 @@
+return {
+{"Invalid",-1},
+{"None",-2},
+{"Random",-3},
+{"StereoOnly",-4},
+{"FullFrontLowRears",-5},
+{"FrontLeft",0},
+{"FrontRight",1},
+{"Center",2},
+{"Sub",3},
+{"RearLeft",4},
+{"RearRight",5},
+{"CenterLeft",6},
+{"CenterRight",7},
+}

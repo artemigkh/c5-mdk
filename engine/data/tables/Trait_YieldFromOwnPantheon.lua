@@ -1,0 +1,3 @@
+return {
+{"TRAIT_FAITH_FROM_NATURE","YIELD_FAITH",3},
+}

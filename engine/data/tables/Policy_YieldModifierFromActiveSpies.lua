@@ -1,0 +1,3 @@
+return {
+{"POLICY_SCHOLASTICISM","YIELD_CULTURE",3},
+}

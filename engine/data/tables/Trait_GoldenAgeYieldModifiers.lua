@@ -1,0 +1,3 @@
+return {
+{"TRAIT_SCHOLARS_JADE_HALL","YIELD_SCIENCE",20},
+}

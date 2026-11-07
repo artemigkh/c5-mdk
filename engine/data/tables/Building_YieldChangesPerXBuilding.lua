@@ -1,0 +1,4 @@
+return {
+{"BUILDING_RIAD","YIELD_GOLD",1,3},
+{"BUILDING_RIAD","YIELD_CULTURE",1,3},
+}

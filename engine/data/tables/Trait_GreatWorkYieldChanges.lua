@@ -1,0 +1,3 @@
+return {
+{"TRAIT_SLAYER_OF_TIAMAT","YIELD_SCIENCE",3},
+}

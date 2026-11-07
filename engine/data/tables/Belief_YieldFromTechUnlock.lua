@@ -1,0 +1,5 @@
+return {
+{"BELIEF_TITHE","YIELD_CULTURE",2,false},
+{"BELIEF_TITHE","YIELD_FAITH",2,false},
+{"BELIEF_TITHE","YIELD_GOLDEN_AGE_POINTS",2,false},
+}

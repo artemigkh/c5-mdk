@@ -1,0 +1,3 @@
+return {
+{"TRAIT_BONUS_AGAINST_TECH","YIELD_FAITH",1},
+}

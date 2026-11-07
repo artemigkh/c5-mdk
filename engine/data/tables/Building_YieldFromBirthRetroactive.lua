@@ -1,0 +1,3 @@
+return {
+{"BUILDING_MEDICAL_LAB","YIELD_SCIENCE",50},
+}

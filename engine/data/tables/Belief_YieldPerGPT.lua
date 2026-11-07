@@ -1,0 +1,3 @@
+return {
+{"BELIEF_PEACE_GARDENS","YIELD_FAITH",10},
+}

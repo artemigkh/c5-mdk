@@ -1,0 +1,3 @@
+return {
+{"TRAIT_EXTRA_BELIEF","BUILD_FORT"},
+}

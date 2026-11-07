@@ -1,0 +1,3 @@
+return {
+{"BUILDING_TATARA","RESOURCE_IRON",1,1},
+}

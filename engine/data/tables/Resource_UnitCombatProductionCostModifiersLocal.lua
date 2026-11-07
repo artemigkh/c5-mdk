@@ -1,0 +1,3 @@
+return {
+{"RESOURCE_IVORY","UNITCOMBAT_SIEGE",nil,"ERA_INDUSTRIAL",-15},
+}

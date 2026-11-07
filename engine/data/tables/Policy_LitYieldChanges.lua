@@ -1,0 +1,3 @@
+return {
+{"POLICY_CULTURAL_CENTERS","YIELD_FAITH",3},
+}

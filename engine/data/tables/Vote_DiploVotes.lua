@@ -1,0 +1,3 @@
+return {
+{"VOTE_SECRETARY_GENERAL","DIPLOVOTE_UN"},
+}

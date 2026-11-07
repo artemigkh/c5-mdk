@@ -1,0 +1,3 @@
+return {
+{"TRAIT_FINANCIAL","YIELD_FOOD",2},
+}

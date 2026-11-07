@@ -1,0 +1,3 @@
+return {
+{"BELIEF_BRAN","BUILDINGCLASS_CIRCUS",2},
+}

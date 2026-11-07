@@ -1,0 +1,3 @@
+return {
+{"AS3D_UNIT_YAMATO_CANNON","SND_UNIT_MDRN_ARMR_CANNON","GAME_SFX",110,100,0,1.0,0.0,0,-1,0,100,0,0,0,0,0,0,0,0,-1.0,-8,-4,1,"None","None","None",0,0,1.0,64.0,256.0},
+}

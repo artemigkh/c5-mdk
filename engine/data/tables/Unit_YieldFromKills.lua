@@ -1,0 +1,3 @@
+return {
+{"UNIT_CELT_PICTISH_WARRIOR","YIELD_FAITH",200},
+}

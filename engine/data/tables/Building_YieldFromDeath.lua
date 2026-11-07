@@ -1,0 +1,3 @@
+return {
+{"BUILDING_MAUSOLEUM","YIELD_FAITH",30},
+}

@@ -1,0 +1,3 @@
+return {
+{"BELIEF_PILGRIMAGE","YIELD_FOOD",15},
+}
