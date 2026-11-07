@@ -20,7 +20,7 @@ exe is closed source, and only the DLL is open).
 7. [Features](#7-features)
 8. [Start plots, resources, city states, natural wonders (VP AssignStartingPlots)](#8-start-plots-and-resources-under-vp)
 9. [Patterns worth stealing](#9-patterns-worth-stealing)
-10. [Gotchas and counter-intuitive behaviour](#10-gotchas) (Â§10.12: lessons from the sweep of every installed script)
+10. [Gotchas and counter-intuitive behaviour](#10-gotchas) (§10.12: lessons from the sweep of every installed script)
 11. [Shipping checklist and debugging](#11-shipping-checklist-and-debugging)
 12. [Macro metrics: what normal VP maps look like](#12-macro-metrics-what-normal-vp-maps-look-like)
 - [Appendix A: API and constants quick reference](#appendix-a-api-and-constants-quick-reference)
@@ -53,10 +53,10 @@ enabled the active files are:
 | `MapGenerator.lua` | `CP\MapGenerator.lua` (799 lines) | Adds the `PreMapGenScript` hook. `Plots()` and `Shuffle()` moved out of it. |
 | `MapmakerUtilities.lua` | `CP\MapmakerUtilities.lua` (1052 lines) | Now defines `Plots`, `Shuffle`, and many VP helpers. It includes `VPUI_core` and `CPK.lua`. |
 | `AssignStartingPlots.lua` | `VPO\AssignStartingPlots.lua` (9336 lines) | A class rewrite. `CP\AssignStartingPlots.lua` (10436 lines, vanilla-style) runs only in Community-Patch-only mode. |
-| `FeatureGenerator.lua` | `VPO\FeatureGenerator.lua` | Behaviour changes are listed in Â§7. |
+| `FeatureGenerator.lua` | `VPO\FeatureGenerator.lua` | Behaviour changes are listed in §7. |
 | `NaturalWondersCustomMethods.lua` | `VPO\NaturalWondersCustomMethods.lua` | Custom NW eligibility and placement. |
 | `TerrainGenerator.lua`, `FractalWorld.lua`, `MultilayeredFractal.lua`, `IslandMaker.lua` | `BASE\...` | Not overridden. |
-| `HintedWorld.lua` | `BASE\HintedWorld.lua` is a **0-byte file** in this install | Also, `Fractal` exposes no hinted constructor to Lua (Â§4.6). |
+| `HintedWorld.lua` | `BASE\HintedWorld.lua` is a **0-byte file** in this install | Also, `Fractal` exposes no hinted constructor to Lua (§4.6). |
 | `MapUtilities.lua` | `BASE` | Front-end UI helper (map browser). Not part of map generation. |
 
 The modinfo files confirm the VFS import (`import="1"`) for each override:
@@ -102,7 +102,7 @@ restart, or a refresh of the database cache, before the UI shows the change **(u
 inferred from the DB-backed UI)**.
 
 > The entry point is **`GetMapScriptInfo()`**, not `GetMapScriptOptions()`. Options go in its
-> `CustomOptions` field (Â§3).
+> `CustomOptions` field (§3).
 
 ### 1.2 In-game generation (`DLL\CvGame.cpp:576-605`, `DLL\CvMapGenerator.cpp`)
 
@@ -192,8 +192,8 @@ ends with another `Map.RecalculateAreas()` (`VPO\AssignStartingPlots.lua:8661`).
 |---|---|---|---|
 | `GetMapScriptInfo()` | front end / DB scan | none | **Yes** (or the script has no name or options) |
 | `GetMapInitData(worldSize)` | engine | none (engine defaults) | Optional |
-| `GenerateMap()` | engine | yes (:742) | Rarely. You can wrap it (Â§9.15). |
-| `GeneratePlotTypes()` | GenerateMap | all-land shell (:191), plus an off-by-one (Â§10) | **Yes** |
+| `GenerateMap()` | engine | yes (:742) | Rarely. You can wrap it (§9.15). |
+| `GeneratePlotTypes()` | GenerateMap | all-land shell (:191), plus an off-by-one (§10) | **Yes** |
 | `GenerateTerrain()` | GenerateMap | all-grass shell (:207) | **Yes** |
 | `AddRivers()` | GenerateMap | yes, `DoRiver` based (:462) | Optional |
 | `AddLakes()` | GenerateMap | yes (:518) | Optional (Communitu disables it) |
@@ -377,14 +377,14 @@ Their `SortPriority` values are -99 to -95, so they appear first.
 
 `worldSize` is the `Worlds.ID` (0 Duel to 5 Huge). Default grid sizes in the current DB:
 
-| ID | Type | Grid WÃ—H | DefaultPlayers | DefaultMinorCivs | FeatureGrainChange |
+| ID | Type | Grid W×H | DefaultPlayers | DefaultMinorCivs | FeatureGrainChange |
 |---|---|---|---|---|---|
-| 0 | WORLDSIZE_DUEL | 40Ã—24 | 2 | 4 | -1 |
-| 1 | WORLDSIZE_TINY | 56Ã—36 | 4 | 8 | -1 |
-| 2 | WORLDSIZE_SMALL | 66Ã—42 | 6 | 12 | 0 |
-| 3 | WORLDSIZE_STANDARD | 80Ã—52 | 8 | 16 | 0 |
-| 4 | WORLDSIZE_LARGE | 104Ã—64 | 10 | 20 | 1 |
-| 5 | WORLDSIZE_HUGE | 128Ã—80 | 12 | 24 | 1 |
+| 0 | WORLDSIZE_DUEL | 40×24 | 2 | 4 | -1 |
+| 1 | WORLDSIZE_TINY | 56×36 | 4 | 8 | -1 |
+| 2 | WORLDSIZE_SMALL | 66×42 | 6 | 12 | 0 |
+| 3 | WORLDSIZE_STANDARD | 80×52 | 8 | 16 | 0 |
+| 4 | WORLDSIZE_LARGE | 104×64 | 10 | 20 | 1 |
+| 5 | WORLDSIZE_HUGE | 128×80 | 12 | 24 | 1 |
 
 Typical override (`VPMS\Highlands.lua:66-85`):
 
@@ -398,12 +398,12 @@ function GetMapInitData(worldSize)
 end
 ```
 
-`TopLatitude` and `BottomLatitude` (clamped to Â±90, `DLL\CvMap.cpp:866-873`) only affect
+`TopLatitude` and `BottomLatitude` (clamped to ±90, `DLL\CvMap.cpp:866-873`) only affect
 `plot:GetLatitude()` (`DLL\CvPlot.cpp:5644-5660`). That in turn feeds resource
 `MinLatitude`/`MaxLatitude` checks in `CanHaveResource` (`CvPlot.cpp:2519-2527`). The stock
-Terrain and Feature generators **ignore them** and compute latitude from `y` alone (Â§5).
+Terrain and Feature generators **ignore them** and compute latitude from `y` alone (§5).
 
-Odd widths are fine. Communitu uses 79Ã—53 and 69Ã—46 (`VPMS\Communitu_79a.lua:1395-1402`).
+Odd widths are fine. Communitu uses 79×53 and 69×46 (`VPMS\Communitu_79a.lua:1395-1402`).
 
 ---
 
@@ -451,7 +451,7 @@ How it works (`:575-761`). Three fractals: `continentsFrac` (land/water), `hills
 `mountainsFrac`. The last two are seeded with `BuildRidges` Voronoi ridgelines. Land is
 `height > continentsFrac:GetHeight(water_percent)`. Mountains are `mountainVal >=
 mountainsFrac:GetHeight(97 - adj)`, unless `hillVal >= pass threshold`, which makes a "mountain
-pass" of hills. Hills come from two bands of `hillsFrac` (28Â±adj and 72Â±adj percentiles) plus
+pass" of hills. Hills come from two bands of `hillsFrac` (28±adj and 72±adj percentiles) plus
 foothills next to ridges. It then shifts plot types so the emptiest column or row lands on the map
 edge (`ShiftPlotTypes`, `:94-226`). If `has_center_rift` is set, it also carves an Atlantic-style
 rift (`GenerateCenterRift`, `:228-573`).
@@ -467,7 +467,7 @@ replaces `GeneratePlotTypes` (`Continents.lua:33-58`, `Pangaea.lua`). A common a
 **reject-and-retry loop** around `InitFractal`. Continents rerolls until the biggest landmass is at
 most 58% of land (`Continents.lua:147-206`), and Pangaea until it is at least 84%
 (`Pangaea.lua:148-184`). Vanilla measures with `Map.FindBiggestArea`. In VP, measure **landmass**,
-not area (Â§10.2). VP's own scripts made that fix (`VPMS\Arborea.lua:194-201`):
+not area (§10.2). VP's own scripts made that fix (`VPMS\Arborea.lua:194-201`):
 
 ```lua
 SetPlotTypes(self.plotTypes);
@@ -480,7 +480,7 @@ if Map.GetNumTilesOfLandmass(iBiggestID) >= iNumTotalLandTiles * 0.84 then done 
 
 | Call | Meaning |
 |---|---|
-| `Fractal.Create(w, h, grain, flags, fracXExp, fracYExp)` | Diamond-square fractal on a 2^xExp Ã— 2^yExp grid (default 7Ã—6 = 128Ã—64), sampled bilinearly onto wÃ—h. Uses the **map RNG**. |
+| `Fractal.Create(w, h, grain, flags, fracXExp, fracYExp)` | Diamond-square fractal on a 2^xExp × 2^yExp grid (default 7×6 = 128×64), sampled bilinearly onto w×h. Uses the **map RNG**. |
 | `Fractal.CreateRifts(w, h, grain, flags, riftsFrac, xExp, yExp)` | As above, then carves rifts from another fractal (assumes wrap X). |
 | `frac:GetHeight(x, y)` | Height 0..255 (0..99 with `FRAC_PERCENT`). Out-of-range coordinates return 0. |
 | `frac:GetHeight(pct)` | **One-argument form**: the height value at percentile `pct` (0..100), via binary search over the fractal grid (`getHeightFromPercent`). Use it to turn "72% water" into a threshold. |
@@ -530,15 +530,15 @@ fills `wholeworldPlotTypes`, then a bays fractal erodes it (`Oval.lua:55-124`).
 Hidden bug: `GenerateFractalLayer` assigns `PlotTypes.PLOT_PEAK` (around `:391`), which **does not
 exist**. The value is `nil`. It works by accident. The nil entry passes the `~= PLOT_OCEAN` test
 when layering, and `SetPlotType(nil)` reads `lua_tointeger(nil) = 0`, which is `PLOT_MOUNTAIN`
-(Â§10.6). Don't copy this.
+(§10.6). Don't copy this.
 
 `bShift = args.bShift or true` (`:323`) has the same always-true problem as FractalWorld.
 
 ### 4.5 `IslandMaker` (`BASE\IslandMaker.lua`)
 
 `CreateSingleAxisIslandChain(w, h, tiltDegrees)` and its `...WithDots`, `...WithShiftedDots`,
-`...WithDoubleDots` variants return a **local 1-based boolean table** (`true` = land) for a wÃ—h
-cell, or `nil` if the cell is smaller than 4Ã—4 or 24 plots (`:20-30`). You stamp it into your plot
+`...WithDoubleDots` variants return a **local 1-based boolean table** (`true` = land) for a w×h
+cell, or `nil` if the cell is smaller than 4×4 or 24 plots (`:20-30`). You stamp it into your plot
 array yourself (`VPMS\Large_Islands.lua:556-640`, Communitu `GenerateIslands`).
 
 ### 4.6 Hinted fractals and `HintedWorld`
@@ -546,7 +546,7 @@ array yourself (`VPMS\Large_Islands.lua:556-640`, Communitu `GenerateIslands`).
 The C++ class has `fracInitHinted` (`CvFractal.h:43`), but **no Lua binding exists**. `CvLuaFractal`
 registers only `Create` and `CreateRifts` (`CvLuaFractal.cpp:85-89`). `BASE\HintedWorld.lua` is
 0 bytes in this install. Write your own noise for hinted or template-driven generation (Communitu's
-Perlin `FloatMap` is the reference, Â§9.1).
+Perlin `FloatMap` is the reference, §9.1).
 
 ### 4.7 Voronoi and tectonic approaches
 
@@ -561,7 +561,7 @@ Perlin `FloatMap` is the reference, Â§9.1).
   `:1754-1784`) instead of recomputing Voronoi distances per query. It uses **great-circle
   distance**, with longitude taken from x, so plates wrap correctly across the seam (`:1764-1772`).
 - Both keep most of their state in **undeclared globals** (`ft`, `f`, `q`, `xAdj`, ...). This works
-  but is slow and fragile (Â§10.9).
+  but is slow and fragile (§10.9).
 
 ### 4.8 Hand-rolled heightmaps (Communitu)
 
@@ -589,8 +589,8 @@ independently of noise amplitude.
 
 Sea level is just the water percentile you threshold at. FractalWorld's defaults are 65/72/78 %
 water for low/medium/high (`FractalWorld.lua:589-591`). Continents uses 67/72/76. Communitu uses
-`landPercent` (0.40 base, Ã—1.25 or Ã·1.25). Polar water comes from `FRAC_POLAR` (Â§4.3), from explicit
-row clearing (Communitu `CreateArcticOceans`), or from feature ice placed later (Â§7).
+`landPercent` (0.40 base, ×1.25 or ÷1.25). Polar water comes from `FRAC_POLAR` (§4.3), from explicit
+row clearing (Communitu `CreateArcticOceans`), or from feature ice placed later (§7).
 
 ---
 
@@ -619,19 +619,19 @@ local tg = TerrainGenerator.Create{ temperature = 2,   -- 1 cool, 2 temperate, 3
 SetTerrainTypes(tg:GenerateTerrain());
 ```
 
-- Latitude is `|H/2 - y| / (H/2)`, roughened by a variation fractal (Â±0.1), and clamped to [0,1]
+- Latitude is `|H/2 - y| / (H/2)`, roughened by a variation fractal (±0.1), and clamped to [0,1]
   with the Firaxis extension `math.clamp` (`:134-145`). 0 is the equator and 1 the poles.
   **`TopLatitude` and `BottomLatitude` are ignored.** To bend climate (a tilted axis, or Highlands'
   cold-north/cold-south), override `TerrainGenerator:GetLatitudeAtPlot` (`VPMS\Highlands.lua`,
   `Four_Corners.lua`, `Tilted_Axis.lua`).
-- Bands: snow if `lat â‰¥ fSnowLatitude`, tundra if `â‰¥ fTundraLatitude`, all grass if
+- Bands: snow if `lat ≥ fSnowLatitude`, tundra if `≥ fTundraLatitude`, all grass if
   `< fGrassLatitude`. In between, desert where the desert fractal is in its top `iDesertPercent`
   and lat is within [desertBottom, desertTop). Otherwise plains where the plains fractal is in its
   top `iPlainsPercent`. Otherwise grass (`:161-198`).
 - Water plots keep their terrain, so coasts must already be set. Hills and mountains get a normal
   base terrain.
 - For a different climate model, replace `GenerateTerrainAtPlot` (North_vs_South, Ring, Skirmish)
-  or skip TerrainGenerator entirely (Communitu: temperature + rainfall maps, Â§9.1).
+  or skip TerrainGenerator entirely (Communitu: temperature + rainfall maps, §9.1).
 
 ### 5.3 Coast vs ocean (`GenerateCoasts`, `CP\MapGenerator.lua:141-180`)
 
@@ -649,13 +649,13 @@ Bug: `local bExpandCoasts = args.bExpandCoasts or true` (`:144`) is **always tru
 `expansion_diceroll_table = {}`.
 
 After generation the engine's `ValidateCoast` forces any non-COAST water next to land to COAST
-(Â§1.2). Other water terrain next to land cannot survive.
+(§1.2). Other water terrain next to land cannot survive.
 
 ### 5.4 Lakes and lake terrain
 
 - **What makes a lake:** `CvLandmass::isLake()` is water landmass size `< MIN_WATER_SIZE_FOR_OCEAN`
   (= **10** in the current DB) (`DLL\CvMap.cpp:122-125`). `plot:IsLake()` reads the plot's landmass
-  flag, and landmasses only update on `Map.RecalculateAreas()` (Â§10.2). Lakes use ordinary COAST
+  flag, and landmasses only update on `Map.RecalculateAreas()` (§10.2). Lakes use ordinary COAST
   terrain (or OCEAN in the middle of a large lake that does not touch land). There is no lake
   terrain.
 - `LAKE_MAX_AREA_SIZE` is a Civ 4 concept. In Civ 5/VP the only size knob is
@@ -666,7 +666,7 @@ After generation the engine's `ValidateCoast` forces any non-COAST water next to
   1/`LAKE_PLOT_RAND` (1/160) chance to become a 1-plot lake (`SetArea(-1)` then
   `SetPlotType(PLOT_OCEAN)`). It then calls `Map.CalculateAreas()`, which recomputes **areas only,
   not landmasses**. The new lakes report `IsLake() == false` until the next `RecalculateAreas`
-  (Â§10.2).
+  (§10.2).
 - Custom lakes: pick candidates (not coastal, not river, not mountain), grow blobs of 1-5 plots
   using row-parity neighbour offsets, set `PLOT_OCEAN`, and recalculate at the end
   (`VPMS\Continental_Drift.lua:1352-1530`, based on Random Scandinavia). Communitu's approach: fill
@@ -675,7 +675,7 @@ After generation the engine's `ValidateCoast` forces any non-COAST water next to
 
 ### 5.5 Hills and mountain adjustments after terrain
 
-- VP's FeatureGenerator turns **coastal mountains into hills** by default (Â§7.1).
+- VP's FeatureGenerator turns **coastal mountains into hills** by default (§7.1).
 - River between two mountains: Communitu demotes the plot to hills (`AddRivers`, `:4176-4178`).
 - Start normalisation may add hills, forest, grass conversion or bonus resources near starts
   (`VPO\AssignStartingPlots.lua:3396-3610`).
@@ -699,7 +699,7 @@ The readers are `IsWOfRiver()` / `GetRiverEFlowDirection()`, `IsNWOfRiver()` /
 `GetRiverSEFlowDirection()`, and `IsNEOfRiver()` / `GetRiverSWFlowDirection()`. To set the W, NW
 or NE edge of plot P, set the corresponding flag on the neighbour in that direction. Communitu's
 `Plot_SetRiver(plot, edgeDirection, flowDirection)` (`VPMS\Communitu_79a.lua:5106-5128`) wraps this
-(Â§9.4).
+(§9.4).
 
 Enums (`REPO\LuaCATS\enum\FlowDirectionTypes.d.lua`, `DirectionTypes.d.lua`): flow NORTH 0,
 NORTHEAST 1, SOUTHEAST 2, SOUTH 3, SOUTHWEST 4, NORTHWEST 5, NO_FLOWDIRECTION 7. Directions NE 0,
@@ -734,7 +734,7 @@ all-edges `updateRiverCrossing()` has no callers. Consequences:
 - `DoRiver(startPlot, thisFlow, originalFlow, riverID)` (`:252-460`) walks corner to corner. At
   each step it may only turn left or right (`TurnRightFlowDirections` /
   `TurnLeftFlowDirections`). It picks the lowest `GetRiverValueAtPlot(adjacent)`, dampens the
-  original direction by Ã—3/4, and stops at water, at the map edge, or on hitting an existing river.
+  original direction by ×3/4, and stops at water, at the map edge, or on hitting an existing river.
   `GetRiverValueAtPlot` (`:227-248`) is `(4 - plotType) * 20` plus neighbour terms plus
   `Map.Rand(10)`, so rivers seek **lower** plot types (ocean 3 beats land 2 beats hills 1 beats
   mountain 0, and lower values win). Override the global `GetRiverValueAtPlot` to steer rivers
@@ -745,7 +745,7 @@ all-edges `updateRiverCrossing()` has no callers. Consequences:
 
 ### 6.4 Common river mistakes
 
-- Setting a river flag where either side is water. It is silently not a river (Â§6.2).
+- Setting a river flag where either side is water. It is silently not a river (§6.2).
 - Inconsistent flows along a path, where consecutive edges disagree in direction. The `DoRiver`
   turn tables guarantee consistency, and hand-rolled code must too. **(Exactly how the renderer
   handles inconsistent flows is unverified.)** Communitu's `RiverMap` models junctions (hex corners)
@@ -823,9 +823,9 @@ weighted dice. The target is a per-size number plus a random addition (2 for Due
 
 ### 7.4 Feature-related area recalculation
 
-Ice and impassable natural wonders change **areas** in VP (Â§10.2). This is why `GenerateMap` calls
+Ice and impassable natural wonders were meant to change **areas** in VP (§10.2.1: in practice areas ignore passability, but landmasses, lakes and coastal flags still refresh). This is why `GenerateMap` calls
 `Map.RecalculateAreas()` after `AddFeatures` (`CP\MapGenerator.lua:779-780`), and why ASP must not
-trigger a recalculation mid-run (Â§8.8).
+trigger a recalculation mid-run (§8.8).
 
 ---
 
@@ -854,7 +854,7 @@ Everything here is `VPO\AssignStartingPlots.lua` (abbreviated **ASP**) unless no
 | Value | Name | Behaviour in VP |
 |---|---|---|
 | 1 | `BIGGEST_LANDMASS` | All civs on `Map.FindBiggestLandmassID(false)`. In VP this is the **landmass**, so it spans mountain ranges and isthmuses (header note :58-71). `bArea = false`. |
-| 2 | `CONTINENTAL` (default) | Landmasses with at least `0.25 Ã— fertility(biggest)` are candidates. Their **areas** are ranked by fertility and civs are assigned greedily. Each area is divided separately. `bArea = true`. **Automatic fallbacks**: if at most one landmass qualifies, it retries with lower thresholds (up to 5 times), then falls back to method 1. If total fertility is too low, it retries (up to 4 times), then falls back to method 3 (:1614-1624, :1722-1732). |
+| 2 | `CONTINENTAL` (default) | Landmasses with at least `0.25 × fertility(biggest)` are candidates. Their **areas** are ranked by fertility and civs are assigned greedily. Each area is divided separately. `bArea = true`. **Automatic fallbacks**: if at most one landmass qualifies, it retries with lower thresholds (up to 5 times), then falls back to method 1. If total fertility is too low, it retries (up to 4 times), then falls back to method 3 (:1614-1624, :1722-1732). |
 | 3 | `RECTANGULAR` | One rectangle (whole map by default) divided by fertility, ignoring landmass. Use for archipelagos (`Archipelago.lua`: `method = 3` and `mustBeCoast = true`). |
 | 4 | `RECTANGULAR_SELF_DEFINED` | As 3, with `args.iWestX, iSouthY, iWidth, iHeight`. City states may then use land outside the rectangle. |
 
@@ -908,7 +908,7 @@ river, mountain-adjacent and snow-adjacent candidate starts if you expect such c
 ### 8.5 Natural wonders
 
 - How many: `ASP:GetNumNaturalWondersToPlace(iWorldSize)` returns 2/3/4/5/6/7 for Duel to Huge
-  (:4512-4522). Override it to change the count (Communitu: `(size + 1) * 2`, Ã—1.25 for Terra-style).
+  (:4512-4522). Override it to change the count (Communitu: `(size + 1) * 2`, ×1.25 for Terra-style).
 - Which: rows of the DB table **`Natural_Wonder_Placement`** (17 rows; its columns include
   `OccurrenceFrequency`, `RequireBiggestLandmass`, `AvoidBiggestLandmass`, `RequireFreshWater`,
   `LandBased`, `CoreTileCanBe*`, `AdjacentTilesRequire*` / `Avoid*`, `TileChangesMethodNumber`,
@@ -1040,7 +1040,7 @@ vanilla scripts (`cityStateData`, `iNumTypesUnassigned`, `naturalWondersData`,
 
 Each pattern lists its purpose, source, and a trimmed excerpt.
 
-### 9.1 Climate model: temperature Ã— rainfall â†’ terrain (Communitu)
+### 9.1 Climate model: temperature × rainfall → terrain (Communitu)
 
 - **Purpose:** realistic biomes instead of latitude bands.
 - **Source:** `VPMS\Communitu_79a.lua` `GenerateTempMaps` (:4465), `GenerateRainfallMap` (:4545),
@@ -1139,7 +1139,7 @@ West_vs_East also override it.
 
 ### 9.6 Coastal expansion passes
 
-`GenerateCoasts{expansion_diceroll_table = {4, 4}}` gives two 25 % rings (Â§5.3). For a shallower
+`GenerateCoasts{expansion_diceroll_table = {4, 4}}` gives two 25 % rings (§5.3). For a shallower
 shelf use `{2, 3, 4}`; for none use `{}`. Custom: collect OCEAN plots with
 `plot:IsAdjacentToShallowWater()` first, then set them, so a pass does not chain.
 
@@ -1193,7 +1193,7 @@ math.randomseed(Map.Rand(32767, "") * 65536 + Map.Rand(65535, ""))
 
 ### 9.12 Logging
 
-`print(...)` writes to `Lua.log` (Â§11.2). Communitu wraps optional timing with
+`print(...)` writes to `Lua.log` (§11.2). Communitu wraps optional timing with
 `os.clock()` (:2187, :2263) and dumps float maps to CSV with `FloatMap:Save` (:5905). In
 `__CustomInit` it silences ASP's chatter by replacing `print` with a no-op when `debugPrint` is
 false (:531-533).
@@ -1298,14 +1298,18 @@ most damaging come first.
 ### 10.2 Areas, landmasses, continents, lakes (VP DLL semantics)
 
 1. **In VP, an "area" is not a connected component.** `CvMap::calculateAreas`
-   (`DLL\CvMap.cpp:1879-2010`) groups plots that share **water-ness *and* passability**
-   (`BothHaveSamePassabilityAndDomain`, `DLL\CvAStar.cpp:2777-2780`), using a "wide connection"
-   rule that also checks the rear-left and rear-right neighbours (`AreaValid`, `:2784-2829`).
-   Leftover groups smaller than 7 plots merge into the largest adjacent area of the same domain.
-   Results:
-   - **Mountain ranges, ice sheets and impassable NWs split a continent into several areas.**
-   - Thin isthmuses can split areas too.
-   - Single mountains and ice plots get absorbed into the surrounding area.
+   (`DLL\CvMap.cpp:1879-2010`) *looks* like it groups plots by water-ness and passability with a
+   "wide connection" rule (`AreaValid`, `DLL\CvAStar.cpp:2784-2829`), but the step pathfinder it
+   calls refuses every step when `iMaxTurns` is 0 or 1 (`CvAStar::LinkChild`, `:625-630`), which is
+   what `calculateAreas` passes. What actually runs (verified against a real game, see
+   `docs/engine-api.md` §17 A1): plots are visited in index order (y=0 first), and each unassigned
+   plot joins the **largest already-assigned neighbouring area of the same water/land kind**, or
+   opens a new area. Results:
+   - **Impassability is ignored**: mountains merge into the surrounding land area, ice into the ocean.
+   - **Concave shapes split**: an n-shaped continent becomes two areas that never re-merge; a long
+     east-west coastline can produce several areas on the same continent.
+   - Area shapes depend on scan order, so the biggest area is often much smaller than the biggest
+     landmass. Vanilla Pangaea's "84 % in one area" loop needed 26 attempts in a real VP game.
 2. **A "landmass" is the plain connected component** of land or water (`LandmassValid`,
    `CvAStar.cpp:2834-2841`). A **"continent"** groups plots by deep-water connectivity
    (`ContinentValid`, `:2845-2852`) and is used for art and naming.
@@ -1316,7 +1320,7 @@ most damaging come first.
    `Map.FindBiggestArea(bWater)` an object, `for _, area in Map.Areas() do`), but it means
    something different from vanilla. Vanilla Pangaea and Continents test
    `Map.FindBiggestArea(false)` against 84% / 58% of all land. In VP that can retry many more times
-   or accept a different shape. VP's own copies switched to landmass (Â§4.2).
+   or accept a different shape. VP's own copies switched to landmass (§4.2).
 4. **`Area:IsLake()` does not exist in VP**. Its registration is commented out
    (`DLL\Lua\CvLuaArea.cpp:30`), so old code fails with *attempt to call method 'IsLake'*. Use
    `plot:IsLake()`.
@@ -1344,17 +1348,17 @@ most damaging come first.
 ### 10.3 Plot setters: side effects and silent conversions
 
 1. **`SetPlotType` can change terrain** (to coast, ocean or grass when water-ness flips), and
-   to/from ocean it erases the plot (Â§4.1). **`SetTerrainType` can change the plot type** (a water
-   terrain makes the plot ocean, and vice versa) (Â§5.1).
+   to/from ocean it erases the plot (§4.1). **`SetTerrainType` can change the plot type** (a water
+   terrain makes the plot ocean, and vice versa) (§5.1).
 2. **`TERRAIN_HILL` is `Water = 1`** in the DB, and both it and `TERRAIN_MOUNTAIN` are
    `GraphicalOnly`. Never assign either.
 3. **`CanHaveFeature` is false whenever the plot already has a feature**, and it is always false on
    mountains (`CvPlot.cpp:5506-5525`). `SetFeatureType` itself has **no validity check**.
 4. **Clearing the feature on a river desert plot puts flood plains back** (`CvPlot.cpp:7551-7556`).
 5. **River crossings are computed only when a river flag changes**, and only for land-land edges
-   (Â§6.2). Change plot types first, then rivers.
+   (§6.2). Change plot types first, then rivers.
 6. **The engine converts any water next to land into COAST after generation** (`ValidateCoast`,
-   Â§1.2). Deep ocean hugging a coastline will not survive.
+   §1.2). Deep ocean hugging a coastline will not survive.
 7. **`SetPlotType(PLOT_OCEAN)` keeps the old (land) landmass and area IDs until recalculation**
    (default `AddLakes` even calls `SetArea(-1)` first, `CP\MapGenerator.lua:530`).
 
@@ -1362,7 +1366,7 @@ most damaging come first.
 
 1. **`Map.GetCustomOption(i)`: `i` is the 1-based position in *your* `CustomOptions`, and the value
    is the 1-based index into `Values`.** "Random" is just the last value, which you must resolve.
-   A missing option returns `nil` (Â§3.2).
+   A missing option returns `nil` (§3.2).
 2. **`Map.Rand(n, "tag")` returns [0, n)**. The **string is mandatory**
    (`luaL_checkstring`, `CvLuaMap.cpp:363-371`). Without it: *bad argument #2 to 'Rand'*. For
    `n < 2` it returns 0 **without advancing the RNG** (`DLL\CvRandom.cpp:104-105`). Negative `n`
@@ -1379,19 +1383,19 @@ most damaging come first.
    keys first. (Lua 5.1 semantics; the fix is cheap.)
 6. **`args.x or true` cannot be switched off**: `GenerateCoasts{bExpandCoasts=false}`,
    `InitFractal{polar=false}`, `GeneratePlotTypes{shift_plot_types=false}`, and
-   `GenerateFractalLayer{bShift=false}` are all ignored (Â§4.2, Â§4.4, Â§5.3).
-7. **World age: value 1 = 3 billion years (young, more mountains)** (Â§3.2).
+   `GenerateFractalLayer{bShift=false}` are all ignored (§4.2, §4.4, §5.3).
+7. **World age: value 1 = 3 billion years (young, more mountains)** (§3.2).
 8. `IsTropical(y)` reads option 2 as rainfall, but option 2 is temperature in standard scripts
    (`CP\MapmakerUtilities.lua:785`).
 
 ### 10.5 Lifecycle and environment
 
-1. **Top-level code runs before the map exists** (Â§1.2). Do map queries inside your functions.
+1. **Top-level code runs before the map exists** (§1.2). Do map queries inside your functions.
 2. **`GetMapInitData` sizes must be integers** (`lua_tointeger`). Floor them yourself.
 3. **`include` re-executes the file**, so re-including ASP after overriding it wipes your top-level
-   overrides (Â§1.4).
+   overrides (§1.4).
 4. A `PreMapGenScript` from another mod runs after your script's top-level code and can override
-   your class-level ASP overrides (Â§8.8).
+   your class-level ASP overrides (§8.8).
 5. **`Map.ChangeAIMapHint(n)` does nothing in VP.** The DLL stores the value but never reads it
    (`DLL\CvMap.h:452`: *"unused on DLL side but exposed to lua"*, and no Lua reader exists in the
    repo). Scripts still call it (Archipelago, Terra, Communitu). It is harmless, but don't rely on
@@ -1406,13 +1410,13 @@ most damaging come first.
    A typo in an enum name is therefore silent:
    - `plot:SetFeatureType(FeatureTypes.FEATURE_FORRESt)` gives `0` = **`FEATURE_ICE`**.
    - `plot:SetPlotType(PlotTypes.PLOT_PEAK)` gives `0` = **`PLOT_MOUNTAIN`** (the
-     MultilayeredFractal accident, Â§4.4).
+     MultilayeredFractal accident, §4.4).
    - `plot:SetTerrainType(nil)` gives `0` = **`TERRAIN_GRASS`**.
    - `plot:SetResourceType(GameInfoTypes.RESOURCE_TYPO, 1)` gives `0` = **`RESOURCE_IRON`**.
    Assert that your IDs are not nil.
 2. `Fractal:GetHeight` with 1 argument is a **percentile lookup**, and with 2 it is a **height
    sample**. Any other count raises *"Invalid number of arguments."* (`CvLuaFractal.cpp:193-219`).
-3. Fractal flags must be a **table of booleans**. A number is ignored (Â§4.3).
+3. Fractal flags must be a **table of booleans**. A number is ignored (§4.3).
 
 ### 10.7 GameInfo, enums, defines
 
@@ -1438,11 +1442,11 @@ most damaging come first.
 ### 10.8 VP ASP assumptions
 
 1. ASP needs `GenerateRegions` to have set `method`, `bArea`, `iNumCivs`, `iNumCityStates`,
-   `player_ID_list`, and `regionData` (8 fields, with field 5 interpreted by `bArea`) (Â§8.2).
+   `player_ID_list`, and `regionData` (8 fields, with field 5 interpreted by `bArea`) (§8.2).
 2. Continental division silently falls back to Biggest Landmass or Rectangular when land is too
-   fragmented or infertile (Â§8.2). Check `Lua.log` for "Switching to use".
+   fragmented or infertile (§8.2). Check `Lua.log` for "Switching to use".
 3. **NWs never sit on a plot with a missing neighbour** (edge rows, and edge columns on non-wrap
-   maps), and they need nearby fertile land (Â§8.5).
+   maps), and they need nearby fertile land (§8.5).
 4. Old vanilla overrides that **silently do nothing** under VP: the `CanBe<Wonder>` family,
    `GetDisabledLuxuriesTargetNumber` and `GetCityStateLuxuriesTargetNumber` (marked UNUSED,
    :6008-6037), `FixSugarJungles` (renamed `AdjustTiles`), and anything that writes
@@ -1454,12 +1458,12 @@ most damaging come first.
 7. `RegionDivision`, `ImpactLayers` and `PlotListTypes` are **globals created by VP's ASP**. Code
    that uses them won't run in CP-only mode.
 8. Communitu's `legendary` arg is ignored, and its Random strategic density becomes Legendary Start
-   (Â§3.3).
+   (§3.3).
 
 ### 10.9 Performance
 
-1. Map scripts run once, but Huge maps have 10,240 plots (128Ã—80) and Communitu-size maps 7,000+.
-   O(plots Ã— neighbours Ã— radius) code is fine. O(plotsÂ²) is not.
+1. Map scripts run once, but Huge maps have 10,240 plots (128×80) and Communitu-size maps 7,000+.
+   O(plots × neighbours × radius) code is fine. O(plots²) is not.
 2. **Undeclared variables are globals.** Each access is a hash lookup in `_G`, and they leak
    between functions (Tectonic: `ft`, `f`, `q`, `xAdj`, `yAdj`, `mag`, ...). Use `local`.
 3. Cache `Map.GetPlot` results in a flat array, or use `Plots()`, which memoizes
@@ -1477,7 +1481,7 @@ most damaging come first.
 
 ### 10.10 Map edges, wrap, latitude
 
-1. **The wrap seam (x = 0 / W-1).** Fractals need `Map.GetFractalFlags()` to tile (Â§4.3), your own
+1. **The wrap seam (x = 0 / W-1).** Fractals need `Map.GetFractalFlags()` to tile (§4.3), your own
    noise needs `x % W`, and plate distances need wrap-aware metrics. Communitu forces flat land in
    the 2 columns each side of the seam *"to prevent issues with tiles that don't look like what they
    are"* (`:1787-1790`) **(graphical issue unverified)**.
@@ -1485,7 +1489,7 @@ most damaging come first.
    and ignore `TopLatitude` / `BottomLatitude`. `plot:GetLatitude()` (integer degrees, absolute) uses
    them, and resource `MinLatitude` / `MaxLatitude` use that (`CvPlot.cpp:5644-5660`). With defaults
    (90/-90), y = 0 is 90 degrees and y = H/2 is about 0.
-3. FRAC_POLAR on a non-wrapping map waters the east and west edges too (Â§4.3).
+3. FRAC_POLAR on a non-wrapping map waters the east and west edges too (§4.3).
 4. VP ice: wrap-X maps get **ice on every water plot of rows 0 and H-1**
    (`VPO\FeatureGenerator.lua:244-245`). Polar land rows stay land (snow), so strip land from the
    edge rows if you want navigable poles to stay closed.
@@ -1493,8 +1497,8 @@ most damaging come first.
 ### 10.11 Hills, mountains, coasts
 
 1. VP's `FeatureGenerator:AddFeatures()` **with no argument turns coastal mountains into hills**
-   (Â§7.1). Pass `true` to keep sea cliffs.
-2. Mountains are impassable and form their own areas (item 10.2.1). Long ranges can strand
+   (§7.1). Pass `true` to keep sea cliffs.
+2. Mountains stay impassable for units but do not split areas (item 10.2.1). Long ranges can strand
    start regions in Continental mode.
 3. Hills on the coast are fine. Mountains can't take features, and NW placement can convert core
    tiles (`ChangeCoreTileToMountain` and so on in `Natural_Wonder_Placement`).
@@ -1502,23 +1506,23 @@ most damaging come first.
 ### 10.12 Lessons from the headless sweep of every installed script
 
 These come from running all 87 installed scripts through the harness (`docs/script-compat.md`) and the
-700-run metrics benchmark (Â§12, `docs/metrics-baselines.md`). Failures listed here are script bugs that
+700-run metrics benchmark (§12, `docs/metrics-baselines.md`). Failures listed here are script bugs that
 happen the same way in game, not harness artefacts.
 
 1. **The luxury tile count is fixed per world size, not per land area.** `GetWorldLuxuryTargetNumbers`
-   is a table keyed by `WORLDSIZE_*` and luxury density (`VPO\ASP:6798`). Measured: 103â€“122 luxury tiles at
-   standard and 191â€“204 at huge on every reference script, so luxury *density* runs from 7 per 100 land
+   is a table keyed by `WORLDSIZE_*` and luxury density (`VPO\ASP:6798`). Measured: 103–122 luxury tiles at
+   standard and 191–204 at huge on every reference script, so luxury *density* runs from 7 per 100 land
    (Terra, big grid) to 14 (Archipelago, little land). A land-heavy script dilutes luxuries; a water-heavy
-   one concentrates them. Strategic density, by contrast, stays at 9â€“14 per 100 land.
-2. **Scripts commonly override the grid size** in `GetMapInitData`, so "standard" is not always 80Ã—52:
-   Communitu 79Ã—53 at standard but only **97Ã—66 at huge** (vs the default 128Ã—80), Continental_Drift 88Ã—58,
-   Terra **104Ã—64 at standard** (152Ã—96 at huge), Oval 64Ã—40. Land per civ and absolute resource counts
+   one concentrates them. Strategic density, by contrast, stays at 9–14 per 100 land.
+2. **Scripts commonly override the grid size** in `GetMapInitData`, so "standard" is not always 80×52:
+   Communitu 79×53 at standard but only **97×66 at huge** (vs the default 128×80), Continental_Drift 88×58,
+   Terra **104×64 at standard** (152×96 at huge), Oval 64×40. Land per civ and absolute resource counts
    follow the grid, so compare densities, not counts, across scripts.
-3. **VP region types 9 and 10 break luxury tables that cover only 1â€“8.** VP re-classifies one region per
+3. **VP region types 9 and 10 break luxury tables that cover only 1–8.** VP re-classifies one region per
    civ with a mountain or snow start bias as `REGION_MOUNTAIN` (9) or `REGION_SNOW` (10)
    (`VPO\ASP:2128-2175`); `AssignLuxuryToRegion` then looks up `self.luxury_region_weights[region_type]`
    (`VPO\ASP:5935-5949`). Expansion `Arborea` and `Rainforest` override `__InitLuxuryWeights`
-   (`Arborea.lua:765`) with entries for types 1â€“8 only, so `ipairs(nil)` fails, but only when such a civ is
+   (`Arborea.lua:765`) with entries for types 1–8 only, so `ipairs(nil)` fails, but only when such a civ is
    in the game (2 of 3 seeds failed). If you override `__InitLuxuryWeights` (VP's is `VPO\ASP:482`), cover
    every `Regions` row, including 9 and 10.
 4. **Team-based scripts need teams.** Scripts with team branches (Hemispheres, North_vs_South, West_vs_East,
@@ -1527,7 +1531,7 @@ happen the same way in game, not harness artefacts.
    takes its vanilla branch, sets `self.method = 2` (continental) without `self.bArea`, and either crashes
    indexing `self.landmass_areas[areaID]` or gives two regions the same start plot. Headless, pass
    `--teams 2` (`--teams 4` for Four_Corners); in your own script, test both team and free-for-all setups.
-5. **ASP fields that no longer exist in VP.** VP's ASP is a rewrite (Â§8.9, Appendix B); these vanilla
+5. **ASP fields that no longer exist in VP.** VP's ASP is a rewrite (§8.9, Appendix B); these vanilla
    fields are gone, so any override that reads them fails under VP (CP-only mode still has them):
    - `self.cityStateData`, read by `CanPlaceCityStateAt` overrides (VP: `self.impactData[ImpactLayers.LAYER_CITY_STATE]`,
      `VPO\ASP:382, 4879`). Affected: Assets `Four_Corners`, `Highlands`, `InlandSea`, `Lakes`
@@ -1553,11 +1557,12 @@ happen the same way in game, not harness artefacts.
 7. **Scripts that retry until the biggest *area* is big enough are sensitive to the whole area
    algorithm.** Vanilla Pangaea, PangaeaPlus, Sandstorm, Shuffle, Tilted_Axis, Expansion Arborea and
    Rainforest, and Continents / ContinentsPlus on some seeds regenerate the plot-type fractal until
-   `Map.FindBiggestArea(false)` covers a target share of land. Under VP's area semantics (Â§10.2.1,
-   `docs/engine-api.md` Â§17 A1) the whole map differs between the harness's `--areas literal` and
-   `--areas floodfill` modes (up to 7Ã— more map-RNG draws for literal). Every other script only differs in
-   10â€“60 plots, from ASP start, city-state and resource placement following area ids. Use landmass
-   APIs (Â§10.2.3) in new scripts and the problem disappears.
+   `Map.FindBiggestArea(false)` covers a target share of land. Under VP's real area semantics
+   (§10.2.1, verified in-game: the harness default `--areas literal` reproduces the DLL's areas exactly)
+   these loops retry many times (26 attempts for a real standard Pangaea) and can accept odd shapes.
+   The harness's `--areas floodfill` is only a what-if and changes the whole map for these scripts; every
+   other script differs by 10-60 plots between the modes. Use landmass APIs (§10.2.3) in new scripts
+   and the problem disappears.
 
 ---
 
@@ -1641,18 +1646,18 @@ happen the same way in game, not harness artefacts.
 | `attempt to index a nil value` right after `Map.GetPlot` | y out of range (x wraps, y doesn't), or the map isn't initialised yet (top-level code). |
 | `attempt to perform arithmetic on a nil value` / `compare number with nil` | `Map.GetCustomOption(i)` for a nonexistent option, a 0-based read of a 1-based `table.fill` table, or a worldsize lookup without a fallback. |
 | `Invalid number of arguments.` | `frac:GetHeight()` with 0 or 3+ arguments. |
-| Map full of ice / mountains / iron where unexpected | A nil enum coerced to 0 (Â§10.6). |
-| Rivers missing next to lakes | A river set before the plot became water, or vice versa (stale crossing, Â§6.2). |
+| Map full of ice / mountains / iron where unexpected | A nil enum coerced to 0 (§10.6). |
+| Rivers missing next to lakes | A river set before the plot became water, or vice versa (stale crossing, §6.2). |
 | All civs crammed on one continent | Biggest-area vs biggest-landmass mix-up, or a Continental â†’ Biggest Landmass fallback (look for "Switching to use"). |
 
 - **Headless iteration.** This repo's harness (`DESIGN.md`) runs scripts outside the game with the
   same VP Lua libraries and renders PNG/ASCII. Use it for fast loops, then confirm in game. The game
   is the source of truth for anything the harness only approximates.
 - **Numeric sanity check.** `python host/metrics.py compare <dump>.json --archetype <closest>`
-  compares a harness dump against the measured ranges of seven community scripts (Â§12). Run it on
+  compares a harness dump against the measured ranges of seven community scripts (§12). Run it on
   several seeds before testing in game.
 - **Old or third-party scripts.** If a script fails with a traceback inside its own ASP override,
-  check Â§10.12 and `docs/script-compat.md` first: most stock scripts that fail under VP have a fixed
+  check §10.12 and `docs/script-compat.md` first: most stock scripts that fail under VP have a fixed
   copy in `VPMS`.
 
 ---
@@ -1665,40 +1670,40 @@ Source: `docs/metrics-baselines.md` (tables) and `docs/metrics-baselines.json` (
 
 Seven reference scripts (`vp:Communitu_79a`, `vp:Continental_Drift`, `Continents`, `SmallContinents`,
 `vp:Terra`, `Oval`, `Archipelago`) were run headless through the harness at standard and huge size, seeds
-1â€“50 each, with default options and the `Worlds` civ / city-state counts (700 runs, 0 failures), and
-`host/metrics.py` measured each dump. "Pooled p5â€“p95" weights the seven archetypes equally: a value inside it
+1–50 each, with default options and the `Worlds` civ / city-state counts (700 runs, 0 failures), and
+`host/metrics.py` measured each dump. "Pooled p5–p95" weights the seven archetypes equally: a value inside it
 is something one of the community's standard scripts produces.
 
 ### 12.2 Metrics a new script must respect
 
-| Metric | Standard p5â€“p95 (median) | Huge p5â€“p95 (median) | Notes |
+| Metric | Standard p5–p95 (median) | Huge p5–p95 (median) | Notes |
 |---|---|---|---|
-| Land % of all plots | 19.4â€“42.9 (25.1) | 20.2â€“42.6 (24.7) | Archipelago â‰ˆ 20, Oval â‰ˆ 42, continent scripts 23â€“26. Archetype-dependent. |
-| Hills % of land | 19.6â€“35.5 (27.3) | 19.6â€“34.1 (25.8) | VP maps are hillier than most people expect. |
-| Mountains % of land | 1.0â€“5.4 (2.6) | 1.3â€“6.5 (2.8) | No reference script exceeds 9 %. |
-| Strategic tiles per 100 land | 9.3â€“13.8 (11.9) | 8.8â€“11.6 (10.6) | The most stable resource density. |
-| Luxury tiles per 100 land | 7.2â€“14.2 (10.4) | 5.6â€“9.7 (7.6) | Moves *inversely* with land: the tile count is fixed per size (103â€“122 / 191â€“204) (Â§10.12.1). |
-| Land tiles on a river % | 11.9â€“24.9 (17.9) | 13.8â€“26.2 (20.7) | Rivers are never absent. |
-| Land tiles with fresh water % | 14.7â€“33.0 (24.8) | 17.9â€“33.9 (27.2) | |
-| Nearest-capital distance, min | 8â€“11 (9) | 9â€“12 (9) | 9 is VP ASP's normal spacing; below 7 is a red flag. |
-| Nearest-capital distance, mean | 9.4â€“15.1 (11.2) | 10.5â€“17.1 (13.2) | |
+| Land % of all plots | 19.4–42.9 (25.1) | 20.2–42.6 (24.7) | Archipelago ≈ 20, Oval ≈ 42, continent scripts 23–26. Archetype-dependent. |
+| Hills % of land | 19.6–35.5 (27.3) | 19.6–34.1 (25.8) | VP maps are hillier than most people expect. |
+| Mountains % of land | 1.0–5.4 (2.6) | 1.3–6.5 (2.8) | No reference script exceeds 9 %. |
+| Strategic tiles per 100 land | 9.3–13.8 (11.9) | 8.8–11.6 (10.6) | The most stable resource density. |
+| Luxury tiles per 100 land | 7.2–14.2 (10.4) | 5.6–9.7 (7.6) | Moves *inversely* with land: the tile count is fixed per size (103–122 / 191–204) (§10.12.1). |
+| Land tiles on a river % | 11.9–24.9 (17.9) | 13.8–26.2 (20.7) | Rivers are never absent. |
+| Land tiles with fresh water % | 14.7–33.0 (24.8) | 17.9–33.9 (27.2) | |
+| Nearest-capital distance, min | 8–11 (9) | 9–12 (9) | 9 is VP ASP's normal spacing; below 7 is a red flag. |
+| Nearest-capital distance, mean | 9.4–15.1 (11.2) | 10.5–17.1 (13.2) | |
 | Capital â†’ nearest city-state, min | exactly 7 | exactly 7 | CS impact radius 6 around every start (`VPO\ASP:2228-2229`). |
-| Luxury tiles within 3 of capital, mean | exactly 3.0 | 2.92â€“3.0 (3.0) | Enforced by VP `PlaceLuxuries` (`VPO\ASP:6845`). Anything else means ASP's luxury pass did not run normally. |
-| Capitals coastal % | 25â€“100 (50) | 16.7â€“100 (41.7) | Archipelago / SmallContinents 100 %, continent maps 35â€“50 %. Archetype-dependent. |
-| Mean latitude of tundra+snow / desert / jungle (0 = equator, 1 = pole) | 0.69â€“0.80 / 0.31â€“0.40 / 0.06â€“0.13 | 0.67â€“0.81 / 0.31â€“0.41 / 0.06â€“0.14 | The climate bands: cold is polar, desert subtropical, jungle equatorial. |
-| Polar rows: land % / ice % of their water | 0â€“4.7 / 83.6â€“100 | 0â€“1.3 / 85.1â€“100 | VP ices every water plot of rows 0 and H-1 on wrap-X maps (Â§10.10.4). |
+| Luxury tiles within 3 of capital, mean | exactly 3.0 | 2.92–3.0 (3.0) | Enforced by VP `PlaceLuxuries` (`VPO\ASP:6845`). Anything else means ASP's luxury pass did not run normally. |
+| Capitals coastal % | 25–100 (50) | 16.7–100 (41.7) | Archipelago / SmallContinents 100 %, continent maps 35–50 %. Archetype-dependent. |
+| Mean latitude of tundra+snow / desert / jungle (0 = equator, 1 = pole) | 0.69–0.80 / 0.31–0.40 / 0.06–0.13 | 0.67–0.81 / 0.31–0.41 / 0.06–0.14 | The climate bands: cold is polar, desert subtropical, jungle equatorial. |
+| Polar rows: land % / ice % of their water | 0–4.7 / 83.6–100 | 0–1.3 / 85.1–100 | VP ices every water plot of rows 0 and H-1 on wrap-X maps (§10.10.4). |
 
-Also invariant in every run: start plots never on water or a mountain, city-state â†’ city-state minimum 5â€“6,
+Also invariant in every run: start plots never on water or a mountain, city-state → city-state minimum 5–6,
 natural wonders 5 at standard and 7 at huge (Communitu places its own: 8 / 12), 18 luxury types at standard
 and 26 at huge (Terra 20 / 27).
 
 ### 12.3 Archetype-dependent vs invariant
 
 **Invariant** (the spread between script medians is small next to the pooled range; missing them means the
-script is wrong, not different): ASP placement constraints (capital spacing, capitalâ€“CS 7, CSâ€“CS 5, 3
+script is wrong, not different): ASP placement constraints (capital spacing, capital–CS 7, CS–CS 5, 3
 luxuries at each capital, no bad starts), strategic density, the luxury and natural-wonder counts, the
-climate-band latitudes, plains 25â€“39 % / desert 7â€“20 % / jungle 5â€“13 % of land, relief (hills, mountains,
-flat land 60â€“78 %), and fresh water. **Archetype-dependent** (compare with `--archetype`, not against the
+climate-band latitudes, plains 25–39 % / desert 7–20 % / jungle 5–13 % of land, relief (hills, mountains,
+flat land 60–78 %), and fresh water. **Archetype-dependent** (compare with `--archetype`, not against the
 pooled range): land %, largest and second landmass share, number of landmasses and tiny islands, coast vs
 deep-ocean share of the sea, coastal land %, how capitals share landmasses (isolated capitals, coastal
 capitals), land per civ and with it the absolute strategic quantities per civ, snow %, marsh and forest,
@@ -1706,27 +1711,27 @@ atolls, oases and lakes.
 
 ### 12.4 Archetype signatures (standard size)
 
-- **Archipelago**: land 20 %, half the sea is coast; â‰ˆ 7 landmasses of â‰¥ 30 tiles, the largest only 16 % of
-  land, â‰ˆ 43 islets. Every capital coastal, 6 of 8 alone on their island, â‰ˆ 20 land tiles within radius 3.
+- **Archipelago**: land 20 %, half the sea is coast; ≈ 7 landmasses of ≥ 30 tiles, the largest only 16 % of
+  land, ≈ 43 islets. Every capital coastal, 6 of 8 alone on their island, ≈ 20 land tiles within radius 3.
   Fewest rivers (9 edges / 100 land, fresh water on 15 % of land), most snow (15 %), highest bonus (34 / 100)
   and luxury (14 / 100) densities, capitals farthest apart (mean 14).
-- **Communitu_79a (VP)**: own grid (79Ã—53; huge 97Ã—66). Land 33 %, the hilliest map (34 % hills, 4 %
+- **Communitu_79a (VP)**: own grid (79×53; huge 97×66). Land 33 %, the hilliest map (34 % hills, 4 %
   mountains), most tundra and desert, richest rivers (21.5 edges / 100 land, 31 % fresh water, 62 % of
-  capitals on a river). Only â‰ˆ 37 % coastal capitals, extra natural wonders (8 / 12), most atolls and oases,
+  capitals on a river). Only ≈ 37 % coastal capitals, extra natural wonders (8 / 12), most atolls and oases,
   lowest strategic density (9.4 / 100), fully iced polar rows.
-- **Continental_Drift (VP)**: grid 88Ã—58. Land 24 %, largest landmass â‰ˆ 39 %. The forest-and-wetland map
+- **Continental_Drift (VP)**: grid 88×58. Land 24 %, largest landmass ≈ 39 %. The forest-and-wetland map
   (28 % forest, 5 % marsh), fewest hills (21 %), most lakes, least ice (10 % of water, 7 % at huge), many
   small islands.
-- **Continents**: two big continents (â‰ˆ 52 % and â‰ˆ 32 % of land), capitals split about 4/4, few islets (â‰ˆ 5),
+- **Continents**: two big continents (≈ 52 % and ≈ 32 % of land), capitals split about 4/4, few islets (≈ 5),
   the most deep ocean (78 % of the sea), least cold terrain (tundra 9 %, snow 2.7 %).
-- **Oval**: one landmass with 99.4 % of the land on a small grid (64Ã—40), land 42 %. Short coastline (27 % of
+- **Oval**: one landmass with 99.4 % of the land on a small grid (64×40), land 42 %. Short coastline (27 % of
   land coastal), the lowest share of coastal city-states (75 %), packed city-states, lowest bonus density
   (17 / 100), highest ice share of water (23 %).
-- **SmallContinents**: â‰ˆ 6 landmasses of â‰¥ 30 tiles, largest â‰ˆ 37 % (but 24â€“63 %). Every capital coastal,
-  only 12 % on a river and 25 % with fresh water, most mountains (4.4 %, 6 % at huge), â‰ˆ 25 land tiles
+- **SmallContinents**: ≈ 6 landmasses of ≥ 30 tiles, largest ≈ 37 % (but 24–63 %). Every capital coastal,
+  only 12 % on a river and 25 % with fresh water, most mountains (4.4 %, 6 % at huge), ≈ 25 land tiles
   within radius 3, capital spacing hits 7 more often than elsewhere.
-- **Terra (VP)**: largest grid (104Ã—64). All civs start on the Old World (â‰ˆ 56 % of land); the New World is
-  empty plus â‰ˆ 52 islets. Highest land per civ (209) so highest strategic quantities per civ, lowest
+- **Terra (VP)**: largest grid (104×64). All civs start on the Old World (≈ 56 % of land); the New World is
+  empty plus ≈ 52 islets. Highest land per civ (209) so highest strategic quantities per civ, lowest
   luxury density (7.2 / 100), city-states far from capitals (mean 18), 20 luxury types.
 
 ### 12.5 Workflow
@@ -1740,10 +1745,10 @@ python host/metrics.py compare out/MyMap/MyMap_standard_1.json --all   # include
 
 `compare` picks the baseline for the dump's world size (standard or huge; other sizes fall back to standard
 and skip absolute counts, so duel/tiny runs flag spacing metrics by design). It marks each metric outside the
-pooled p5â€“p95 (`LOW` / `HIGH`, or `FAR` beyond the pooled min/max), with `--archetype` also outside that
-script's own p5â€“p95 (`arch low/high`), and ends with a one-line verdict. Archetype names: `Communitu`,
+pooled p5–p95 (`LOW` / `HIGH`, or `FAR` beyond the pooled min/max), with `--archetype` also outside that
+script's own p5–p95 (`arch low/high`), and ends with a one-line verdict. Archetype names: `Communitu`,
 `Continental_Drift`, `Continents`, `SmallContinents`, `Terra`, `Oval`, `Archipelago`. It is advisory and
-always exits 0. Read flags against Â§12.3: an archetype-dependent flag may be your design; an invariant flag
+always exits 0. Read flags against §12.3: an archetype-dependent flag may be your design; an invariant flag
 is a bug. To re-measure the baselines after a VP update: `python host/benchmark.py --seeds 50 --workers 10`
 (then `--report` for the tables, `--recompute` after changing `host/metrics.py`).
 
@@ -1767,7 +1772,7 @@ is a bug. To re-measure the baselines after a VP update: `python host/benchmark.
 | `GetWorldSize()`, `GetClimate()`, `GetSeaLevel()` | IDs. |
 | `RecalculateAreas()` | Areas, landmasses, continents and rivers. |
 | `CalculateAreas()` | Areas only. |
-| `GetArea(id)`, `Areas()`, `FindBiggestArea(bWater)`, `GetNumAreas()`, `GetNumLandAreas()`, `GetIndexAfterLastArea()` | Area = passability-split region in VP. |
+| `GetArea(id)`, `Areas()`, `FindBiggestArea(bWater)`, `GetNumAreas()`, `GetNumLandAreas()`, `GetIndexAfterLastArea()` | Area = scan-order greedy merge by water/land in VP (§10.2.1), not a connected component. |
 | `FindBiggestLandmassID(bWater)`, `GetNumTilesOfLandmass(id)` | Landmass = connected component. |
 | `GetLandPlots()`, `GetNumResources(id)`, `GetNumResourcesOnLand(id)`, `GetRandomResourceQuantity(id)` | |
 | `FindWater(plot, range, bFresh)` | Used by river sources. |
@@ -1838,7 +1843,7 @@ copies.
 | Area | Vanilla / BNW | VP | Impact on old scripts |
 |---|---|---|---|
 | ASP object model | `Create()` returns a literal table of copied method refs | Class with `__index` metatable (:236-251) | Class overrides work before or after Create, and new methods are visible. CP-only mode still copies. |
-| Areas | Connected components | Passability-split, "wide" areas (`CvMap.cpp:1879`) | "Biggest area" â‰  "biggest continent". Use landmass APIs. |
+| Areas | Connected components | Scan-order greedy merge by water/land (`CvMap.cpp:1879`; the passability pathfinder never expands) | "Biggest area" ≠ "biggest continent". Use landmass APIs. |
 | `Area:IsLake()` | Available | Not bound (`CvLuaArea.cpp:30`) | Runtime error. |
 | `MeasureStartPlacementFertilityOfLandmass(id, ...)` | Takes an **area** ID | Takes a **landmass** ID. A new `MeasureStartPlacementFertilityOfArea` takes the area | Silent wrong numbers. |
 | `AttemptToPlaceNaturalWonder` | `(wonder_number, row_number)` | `(kPlacementInfo, tEligibilityList)` | Calls break. |

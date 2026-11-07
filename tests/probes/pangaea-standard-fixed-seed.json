@@ -1,0 +1,3 @@
+{"map": {"script": "Assets/Maps/Pangaea.lua", "size": "WORLDSIZE_STANDARD"},
+ "speed": "GAMESPEED_STANDARD", "era": "ERA_ANCIENT", "difficulty": "HANDICAP_PRINCE",
+ "seeds": {"map": 4242, "sync": 4243}}

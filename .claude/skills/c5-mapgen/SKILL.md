@@ -107,9 +107,11 @@ stub it silently. No shipped script hits one today.
   changes and only for land–land edges: set rivers after plot types are final.
 - Areas/landmasses/lakes refresh only on `Map.RecalculateAreas()`; `Map.CalculateAreas()` skips
   landmasses, so freshly added lakes report `IsLake() == false` until the next full recalc.
-- In VP, **areas are not continents** (split by mountains/ice, merged oddly); use landmasses
-  (`plot:GetLandmass()`, `Map.FindBiggestLandmassID()`) for "same continent" logic. Scripts that
-  retry until the biggest *area* is big enough (Pangaea family) change completely with `--areas`.
+- In VP, **areas are not connected components**: the DLL assigns each plot, in scan order, to the
+  largest already-assigned neighbouring area of the same water/land kind, so concave shapes split
+  and never re-merge (verified against a real game). Use landmasses (`plot:GetLandmass()`,
+  `Map.FindBiggestLandmassID()`) for "same continent" logic; `Map.FindBiggestArea` retry loops
+  (vanilla Pangaea) are unreliable under VP.
 - `plot:GetArea()` returns an **id**; `Map.GetArea(id)` gives the object. `Area:IsLake` does not exist in VP.
 - nil or misspelled IDs passed to engine setters silently become 0 (`FEATURE_ICE`, `PLOT_MOUNTAIN`,
   `TERRAIN_GRASS`...). Enum tables return nil for unknown keys, so typos do not error.
@@ -130,13 +132,11 @@ stub it silently. No shipped script hits one today.
 - It is a faithful port, not the game: Lua `pairs()` order and `table.sort` ties can differ from
   Havok Script, so RNG sequences are not guaranteed identical to the game for the same seed.
   Fractal, CvRandom and all map/plot semantics are ported line by line (fractal/RNG verified bit-exact).
-- **Areas**: VP's `calculateAreas` is ported literally (`--areas literal`, default). Read literally,
-  its pathfinder reaches only the start plot, so areas become a greedy scan-order merge; the
-  `--areas floodfill` mode is what the C++ author evidently intended. Pangaea's "84 % in one area"
-  retry loop needs ~90 attempts under `literal` and 1 under `floodfill`; count the
-  "Pangaea landmass generation, Attempt#" lines in the game's `Lua.log` after a real Pangaea
-  game to settle which one the shipped DLL does, then set the default accordingly in `host/c5gen.py`
-  (open question A1, `docs/engine-api.md` §17).
+- **Areas**: VP's `calculateAreas` is ported literally (`--areas literal`, default) and this was
+  verified against a real game: replaying a real Pangaea's plots reproduces every area id
+  (`tests/test_areas_real.py`). `--areas floodfill` is only a what-if (the algorithm the C++ reads
+  as intended but does not execute). To re-check after a DLL update: run `tests/probes/dump-areas.lua`
+  as a `--lua-probe` in civ5-headless and feed the parsed rows to `tests/compare_areas.py`.
 - Player model: majors in slots 0.., city-states from slot 22, barbarian 63; all `Players[0..63]`
   exist. Start era, handicap and game options are defaults unless passed on the CLI.
 - No UI, no WorldBuilder `.Civ5Map` loading, no `Map.DoPlaceNaturalWonders`.
