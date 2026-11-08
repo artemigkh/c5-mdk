@@ -3,7 +3,7 @@
 Usage:
   python host/c5gen.py <script name or path> [--size duel|tiny|small|standard|large|huge] [--seed N]
          [--civs N] [--city-states N] [--teams N] [--civ-list CIVILIZATION_X,CIVILIZATION_Y]
-         [--option IDX=VALUE ...] [--list-options] [--era ERA_ANCIENT] [--handicap HANDICAP_PRINCE]
+         [--option IDX=VALUE ...] [--define KEY=VALUE ...] [--list-options] [--era ERA_ANCIENT] [--handicap HANDICAP_PRINCE]
          [--out out/<name>] [--png] [--ascii] [--stats] [--no-render] [--areas literal|floodfill]
          [--runtime lua51|luajit21] [--timing] [--quiet]
   python host/c5gen.py --list-scripts
@@ -238,6 +238,24 @@ def lua_list(t):
     return out
 
 
+def parse_define_value(v):
+    """--define VALUE: int, else float, else true/false -> bool, else the string itself."""
+    v = v.strip()
+    try:
+        return int(v)
+    except ValueError:
+        pass
+    try:
+        return float(v)
+    except ValueError:
+        pass
+    if v.lower() == "true":
+        return True
+    if v.lower() == "false":
+        return False
+    return v
+
+
 def run(args):
     script_path, source, explicit = resolve_script(args.script)
     script_file = os.path.basename(script_path)
@@ -263,6 +281,16 @@ def run(args):
             v = float(v)
         map_options[k.strip()] = v
 
+    defines = {}
+    for d in getattr(args, "define", None) or []:
+        if "=" not in d:
+            raise SystemExit("c5gen: --define expects KEY=VALUE, got %r" % d)
+        k, v = d.split("=", 1)
+        k = k.strip()
+        if not k:
+            raise SystemExit("c5gen: --define expects KEY=VALUE, got %r" % d)
+        defines[k] = parse_define_value(v)
+
     opts = {
         "data_dir": paths.DATA.replace("\\", "/"),
         "script_path": script_path,
@@ -285,6 +313,8 @@ def run(args):
     }
     if args.float_to_int:
         opts["float_to_int"] = args.float_to_int
+    if defines:
+        opts["defines"] = defines
 
     t0 = time.perf_counter()
     L = make_runtime(args.runtime)
@@ -379,6 +409,9 @@ def main(argv=None):
     ap.add_argument("--civ-list", default=None)
     ap.add_argument("--option", action="append", metavar="IDX=VALUE")
     ap.add_argument("--list-options", action="store_true")
+    ap.add_argument("--define", action="append", metavar="KEY=VALUE",
+                    help="harness-only override: sets global C5MAPS_DEFINES[KEY]=VALUE (int/float/true/false/string) "
+                         "before the script loads; nil in the real game")
     ap.add_argument("--era", default="ERA_ANCIENT")
     ap.add_argument("--handicap", default="HANDICAP_PRINCE")
     ap.add_argument("--out", default=None)

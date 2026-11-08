@@ -1560,8 +1560,9 @@ most damaging come first.
    `((A*seed + C) >> 16) * n / 2^32` with `A = 1103515245`; for seed < ~1e5 the first draw is below
    `n` for every realistic `n`, so it floors to 0. The game seeds with a large random number and
    never shows this; the harness's `--seed 1..50` does (every script's first random decision is
-   deterministic there). Use seeds like 100001 under c5maps when the first draw matters, or draw
-   something unimportant first.
+   deterministic there). Worse, the first draw is almost linear in the seed, so consecutive seeds
+   (100001, 100002, ...) give the *same* first value. Draw something unimportant first
+   (`Map.Rand(2, "warm-up")`); from the second draw on the generator is well mixed.
 
 ### 10.5 Lifecycle and environment
 
@@ -1828,7 +1829,8 @@ happen the same way in game, not harness artefacts.
 - **Headless iteration.** This repo's harness (`DESIGN.md`) runs scripts outside the game with the
   same VP Lua libraries and renders PNG/ASCII. Use it for fast loops, then confirm in game. The game
   is the source of truth for anything the harness only approximates.
-- **Contact sheets.** `python host/sheet.py <script> --size standard --seeds 1,2,3,4,5 --layer mask`
+- **Contact sheets (shape), then the explorer (starts, city-states, resources).** Review many runs in
+  two steps. First `python host/sheet.py <script> --size standard --seeds 1,2,3,4,5`
   runs the script once per seed in parallel and composes one labelled PNG (default
   `out/sheets/<script>_<size>_seeds1-2-3-4-5.png`) with land %, landmasses >= 30 tiles, largest
   landmass % and 1-5 tile islets under each tile. To compare option or `--define` values (§3.5) use
@@ -1838,9 +1840,22 @@ happen the same way in game, not harness artefacts.
   under each tile (e.g. your script's own diagnostic print), c5gen warnings are shown in orange, and a
   failed run becomes a red tile with the Lua error. Each run keeps its dump in
   `<sheet stem>/runs/<label>/`, `summary.json` sits beside them, `--reuse` skips unchanged runs, and
-  the exit status is 1 if any run failed. Tiles use the `plain` layer by default; `--layer mask`
-  (water / flat / hills / mountains only) is the one to judge landmass shape. The same layer and
-  `--no-starts` (hide start markers and civ names) are available in `render/render_map.py`.
+  the exit status is 1 if any run failed. Tiles use the `mask` layer (water / flat / hills /
+  mountains only) with a small white star on each major capital and nothing else (`--no-stars`
+  removes them, `--starts` draws full start markers with names): a grid is for judging landmass
+  shape and capital spread, nothing more (`--layer` overrides; the same layer, `--no-starts` and
+  `--stars` are available in `render/render_map.py`).
+  Then review capitals, city-states and resources one map at a time:
+  `python host/explorer.py --runs out/sheets/<sheet stem>` (or add `--explorer` to the sheet
+  command) writes `<sheet stem>/explorer/explorer.html` with full-size terrain and resources renders
+  (start markers, city-state markers and resource dots) next to it; civ / city-state names, player
+  ids, resource and natural-wonder labels are drawn by the page as a vector overlay, so they stay
+  sharp at any zoom, and a label class too small to read at the current scale (resources first,
+  then city-states, then civ names) is hidden until you zoom in. The page shows one map at a
+  time: ←/→ or the map list to switch, 1/2 for the layer, click or wheel to zoom 2× and drag to pan,
+  and a caption with seed, args, the script's `[Name] params` / `fit` log lines (`--grep REGEX`),
+  majors and city-states placed against the expected count (red when short) and the metrics. It
+  also takes explicit dump paths, and `--embed` inlines the images for a one-file handoff.
 - **Numeric sanity check.** `python host/metrics.py compare <dump>.json --archetype <closest>`
   compares a harness dump against the measured ranges of seven community scripts (§12). Run it on
   several seeds before testing in game.
@@ -1930,6 +1945,14 @@ python host/metrics.py out/MyMap/MyMap_standard_1.json             # every metri
 python host/metrics.py compare out/MyMap/MyMap_standard_1.json --archetype Continents
 python host/metrics.py compare out/MyMap/MyMap_standard_1.json --all   # include unflagged metrics
 ```
+
+Once the script generates land reliably, offer the author the full comparison: benchmark 25 seeds at
+standard and huge into a separate baseline file (`host/benchmark.py --scripts <script> --sizes
+standard,huge --seeds 25 --out out/bench_<name> --baseline out/bench_<name>/<name>-baselines.json`;
+the default `--baseline` path is the reference file and must not be overwritten) and present the
+aggregates next to the seven reference scripts (a copy of the "Civ V map baselines" page with the new
+script as a marked candidate, plus a `METRICS.md` next to the script). Ask before running it: it takes
+minutes, and early in layout work the author usually knows the numbers are off.
 
 `compare` picks the baseline for the dump's world size (standard or huge; other sizes fall back to standard
 and skip absolute counts, so duel/tiny runs flag spacing metrics by design). It marks each metric outside the

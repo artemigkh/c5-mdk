@@ -6,12 +6,16 @@ Reads the map dump JSON described in DESIGN.md ("Map dump format") and renders:
 
 CLI:
   python render/render_map.py out/foo.json [--png out/foo.png] [--ascii] [--hex 12]
-         [--layer terrain|plain|areas|continents|elevation|resources|startbias]
-         [--no-legend] [--no-title] [--labels/--no-labels] [--ss 2] [--stats]
+         [--layer terrain|plain|mask|areas|continents|elevation|resources|startbias]
+         [--no-legend] [--no-title] [--labels/--no-labels] [--no-starts | --stars] [--no-text]
+         [--no-grid] [--ss 2] [--stats]
 
 Importable API:
   load_dump(path) -> dict
-  render_png(dump, path=None, hex_size=None, layer="terrain", legend=True, ...) -> PIL.Image
+  render_png(dump, path=None, hex_size=None, layer="terrain", legend=True, ..., starts=True, text=True)
+      -> PIL.Image      (starts: True | False | "stars"; text=False: markers / dots only, no lettering)
+  label_records(dump, hex_size=None, layer="terrain", ...) -> {"width", "height", "pad", "font", "labels"}
+      the text render_png(text=True) would letter, as positioned records for a vector (SVG) overlay
   render_ascii(dump, spaced=True) -> str
   map_stats(dump) -> str
 
@@ -110,10 +114,18 @@ RES_COLORS = {
     "other": (160, 160, 160),
 }
 START_MAJOR = (255, 255, 255)
+STAR_FILL = (255, 255, 255)          # starts="stars": major capitals on contact-sheet tiles
+STAR_EDGE = (20, 20, 24)
 START_MAJOR_EDGE = (200, 20, 20)
 START_MINOR = (190, 150, 230)
 START_MINOR_EDGE = (70, 30, 110)
 BG = (24, 26, 30)
+# "mask" layer: pure shape review (water / flat / hills / mountains only)
+MASK_WATER = (64, 116, 186)
+MASK_LAKE = (96, 156, 214)
+MASK_FLAT = (206, 214, 192)
+MASK_HILLS = (150, 166, 134)
+MASK_MOUNTAIN = (78, 78, 84)
 TEXT = (235, 235, 235)
 
 CONTINENT_COLORS = {
@@ -288,7 +300,7 @@ def hex_distance(x1, y1, x2, y2, W=None):
 # --------------------------------------------------------------------------------------------
 # PNG renderer
 # --------------------------------------------------------------------------------------------
-LAYERS = ("terrain", "plain", "areas", "continents", "elevation", "resources", "startbias")
+LAYERS = ("terrain", "plain", "mask", "areas", "continents", "elevation", "resources", "startbias")
 
 
 def default_hex_size(W):
@@ -301,6 +313,10 @@ def base_color(d, i, layer):
     pt = d["plot_type"][i]
     tname = _name(d["terrain_types"], d["terrain"][i])
     water = pt == PLOT_OCEAN
+    if layer == "mask":
+        if water:
+            return MASK_LAKE if d["lake"][i] else MASK_WATER
+        return {PLOT_MOUNTAIN: MASK_MOUNTAIN, PLOT_HILLS: MASK_HILLS}.get(pt, MASK_FLAT)
     if layer == "areas":
         return area_color(d["area"][i]) if not water else shade(area_color(d["area"][i]), 0.55)
     if layer == "continents":
@@ -349,31 +365,80 @@ def _star(cx, cy, r_out, r_in, n=5):
     return pts
 
 
+PAD = 6  # px of dark border around the map in every render_png image (final, not supersampled)
+
+
+def _layout(d, s_final, ss, title):
+    """Image layout shared by render_png and label_records (supersampled pixel units)."""
+    W, H = d["width"], d["height"]
+    wrap = bool(d.get("wrap_x"))
+    S = s_final * ss
+    title_h = int(round(max(22, s_final * 1.4) * ss)) if title else 0
+    pad = int(round(PAD * ss))
+    probe = HexGeom(W, H, S, 0, 0)
+    map_w = int(math.ceil(W * probe.w if wrap else probe.map_w))
+    map_h = int(math.ceil(probe.map_h))
+    extra = int(math.ceil(probe.w)) if wrap else 0   # wrap duplicates are drawn into this margin
+    return {"S": S, "title_h": title_h, "pad": pad, "map_w": map_w, "map_h": map_h, "extra": extra,
+            "img_w": map_w + 2 * pad, "geom": HexGeom(W, H, S, extra, 0),
+            "offsets": [0.0, -W * probe.w, W * probe.w] if wrap else [0.0]}
+
+
+def _start_mode(starts):
+    """(full markers + names, major-capital stars only) from render_png's `starts` argument."""
+    if starts == "stars":
+        return False, True
+    if isinstance(starts, str):
+        raise ValueError(f"starts must be True, False or 'stars', not {starts!r}")
+    return bool(starts), False
+
+
+def _civ_label(sp):
+    civ = short_name(sp.get("civ") or "", "CIVILIZATION_") or f"P{sp.get('player')}"
+    for pre in ("Minor Civ ", "Minor "):
+        if civ.startswith(pre):
+            civ = civ[len(pre):]
+    return civ
+
+
+def _res_label(d, i, rname):
+    lab = short_name(rname, "RESOURCE_")[:4]
+    q = d["resource_qty"][i]
+    if resource_class(rname) == "strategic" and q and q > 0:
+        lab += str(q)
+    return lab
+
+
+def _wonder_label(fname):
+    lab = short_name(fname, "FEATURE_")
+    return lab if len(lab) <= 10 else lab[:9] + "."
+
+
 def render_png(d, path=None, hex_size=None, layer="terrain", legend=True, title=True,
-               labels=None, ss=2, grid=True):
-    """Render the dump to a PIL image (and save it if `path`). Returns the image."""
+               labels=None, ss=2, grid=True, starts=True, text=True):
+    """Render the dump to a PIL image (and save it if `path`). Returns the image.
+    starts: True = start-plot markers (circle = major, square = city-state, player id inside) with civ /
+            city-state names and start-bias rings; False = none of that; "stars" = only a white star
+            (dark outline, ~1.6 hex radii across) on each MAJOR start, no names, no city-states.
+    text=False draws no lettering at all (resource / wonder / area labels, names, player ids) but keeps
+            every marker and resource dot; label_records() returns that text for a vector overlay."""
     if layer not in LAYERS:
         raise ValueError(f"unknown layer {layer!r}; choose from {LAYERS}")
+    full_starts, star_starts = _start_mode(starts)
     W, H = d["width"], d["height"]
     wrap = bool(d.get("wrap_x"))
     s_final = float(hex_size) if hex_size else default_hex_size(W)
     if labels is None:
         labels = s_final >= 14
-    S = s_final * ss
-
-    title_h = int(round(max(22, s_final * 1.4) * ss)) if title else 0
-    pad = int(round(6 * ss))
-    geom_probe = HexGeom(W, H, S, 0, 0)
-    map_w = int(math.ceil(W * geom_probe.w if wrap else geom_probe.map_w))
-    map_h = int(math.ceil(geom_probe.map_h))
-    img_w = map_w + 2 * pad
+    L = _layout(d, s_final, ss, title)
+    S, title_h, pad, map_w, map_h, extra, img_w = (L[k] for k in ("S", "title_h", "pad", "map_w", "map_h",
+                                                                   "extra", "img_w"))
 
     # Map is drawn onto its own layer so wrap duplicates can be clipped by cropping.
-    extra = int(math.ceil(geom_probe.w)) if wrap else 0
     mlayer = Image.new("RGB", (map_w + 2 * extra, map_h), BG)
-    g = HexGeom(W, H, S, extra, 0)
+    g = L["geom"]
     dr = ImageDraw.Draw(mlayer)
-    offsets = [0.0, -W * g.w, W * g.w] if wrap else [0.0]
+    offsets = L["offsets"]
 
     def visible(cx):
         return -g.w <= cx <= mlayer.width + g.w
@@ -461,7 +526,7 @@ def render_png(d, path=None, hex_size=None, layer="terrain", legend=True, title=
                             dr.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=RIVER_COLOR)
 
     # ---- pass 4: start-bias rings -----------------------------------------------------------
-    if layer == "startbias":
+    if layer == "startbias" and full_starts:
         for sp in d["start_plots"]:
             col = START_MINOR_EDGE if sp.get("minor") else START_MAJOR_EDGE
             rad = 2 if sp.get("minor") else 3
@@ -483,7 +548,7 @@ def render_png(d, path=None, hex_size=None, layer="terrain", legend=True, title=
 
     # ---- pass 5: resources ------------------------------------------------------------------
     res_font = get_font(max(7, s_final * 0.55) * ss)
-    start_xy = {(sp["x"], sp["y"]) for sp in d["start_plots"]}
+    start_xy = {(sp["x"], sp["y"]) for sp in d["start_plots"]} if full_starts else set()
     if show_resources:
         big = layer == "resources"
         for y in range(H):
@@ -503,17 +568,14 @@ def render_png(d, path=None, hex_size=None, layer="terrain", legend=True, title=
                     px, py = (cx, cy) if big else (cx + S * 0.38, cy + S * 0.32)
                     dr.ellipse([px - r, py - r, px + r, py + r], fill=col, outline=(0, 0, 0),
                                width=max(1, ss))
-                    if (labels or big) and (x, y) not in start_xy:
-                        lab = short_name(rname, "RESOURCE_")[:4]
-                        q = d["resource_qty"][i]
-                        if cls == "strategic" and q and q > 0:
-                            lab += str(q)
+                    if text and (labels or big) and (x, y) not in start_xy:
+                        lab = _res_label(d, i, rname)
                         draw_text_centered(dr, px, py - r - S * 0.28, lab, res_font, (255, 255, 255),
                                            stroke=max(1, ss), stroke_fill=(0, 0, 0))
 
     # ---- pass 6: natural wonder labels, area labels ----------------------------------------
     lab_font = get_font(max(9, s_final * 0.62) * ss, bold=True)
-    if show_features:
+    if show_features and text:
         for y in range(H):
             for x in range(W):
                 i = y * W + x
@@ -523,16 +585,15 @@ def render_png(d, path=None, hex_size=None, layer="terrain", legend=True, title=
                     for off in offsets:
                         cx = cx0 + off
                         if visible(cx):
-                            lab = short_name(fname, "FEATURE_")
-                            lab = lab if len(lab) <= 10 else lab[:9] + "."
+                            lab = _wonder_label(fname)
                             draw_text_centered(dr, cx, cy + S * 1.0, lab, lab_font, WONDER_FILL,
                                                stroke=max(1, ss), stroke_fill=(60, 0, 50))
 
-    if layer == "areas":
+    if layer == "areas" and text:
         _draw_area_labels(d, dr, centers, offsets, visible, S, ss, s_final)
 
     # ---- pass 7: start plots ----------------------------------------------------------------
-    if layer != "areas" or True:
+    if full_starts:
         num_font = get_font(max(7, s_final * 0.7) * ss, bold=True)
         name_font = get_font(max(9, s_final * 0.75) * ss, bold=True)
         for sp in d["start_plots"]:
@@ -541,10 +602,7 @@ def render_png(d, path=None, hex_size=None, layer="terrain", legend=True, title=
                 continue
             minor = bool(sp.get("minor"))
             cx0, cy = centers[(sx, sy)]
-            civ = short_name(sp.get("civ") or "", "CIVILIZATION_") or f"P{sp.get('player')}"
-            for pre in ("Minor Civ ", "Minor "):
-                if civ.startswith(pre):
-                    civ = civ[len(pre):]
+            civ = _civ_label(sp)
             for off in offsets:
                 cx = cx0 + off
                 if not visible(cx):
@@ -557,6 +615,8 @@ def render_png(d, path=None, hex_size=None, layer="terrain", legend=True, title=
                 else:
                     dr.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill, outline=edge,
                                width=max(2, int(r / 4)))
+                if not text:
+                    continue
                 draw_text_centered(dr, cx, cy, str(sp.get("player", "?")), num_font, (0, 0, 0))
                 if not minor or labels:
                     nf = name_font if not minor else get_font(max(8, s_final * 0.6) * ss)
@@ -564,9 +624,24 @@ def render_png(d, path=None, hex_size=None, layer="terrain", legend=True, title=
                                        (255, 255, 255) if not minor else (225, 205, 255),
                                        stroke=max(2, ss + 1), stroke_fill=(0, 0, 0))
 
+    elif star_starts:
+        r_out = max(S * 0.8, 3.2 * ss)          # ~1.6 hex radii across; floor keeps it visible on tiny hexes
+        edge = max(1.0, 0.9 * ss)               # ~1 px dark outline after downsampling
+        for sp in d["start_plots"]:
+            sx, sy = sp["x"], sp["y"]
+            if sp.get("minor") or not (0 <= sx < W and 0 <= sy < H):
+                continue
+            cx0, cy = centers[(sx, sy)]
+            for off in offsets:
+                cx = cx0 + off
+                if visible(cx):
+                    ro = r_out + edge * 1.9
+                    dr.polygon(_star(cx, cy, ro, ro * 0.45), fill=STAR_EDGE)
+                    dr.polygon(_star(cx, cy, r_out, r_out * 0.45), fill=STAR_FILL)
+
     # ---- compose ----------------------------------------------------------------------------
     mcrop = mlayer.crop((extra, 0, extra + map_w, map_h))
-    legend_img = _legend(d, layer, img_w, ss, s_final) if legend else None
+    legend_img = _legend(d, layer, img_w, ss, s_final, starts) if legend else None
     total_h = title_h + pad + map_h + pad + (legend_img.height if legend_img else 0)
     out = Image.new("RGB", (img_w, total_h), BG)
     od = ImageDraw.Draw(out)
@@ -594,6 +669,100 @@ def render_png(d, path=None, hex_size=None, layer="terrain", legend=True, title=
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         out.save(path)
     return out
+
+
+# Vector-overlay label kinds (label_records) and their font sizes in IMAGE pixels for hex circumradius s.
+# Bigger than the raster fonts above: an overlay is never blurred, and a viewer hides a kind whose
+# on-screen size gets too small instead of shrinking it into noise.
+LABEL_KINDS = ("civ", "cs", "num", "res", "wonder")
+LABEL_STYLE = {   # kind: (font px = max(min, k * s), fill, halo, bold)
+    "civ": ((13.0, 1.2), "#ffffff", "#000000", True),
+    "cs": ((10.0, 0.85), "#e1cdff", "#000000", False),
+    "num": ((7.0, 0.70), "#000000", None, True),
+    "res": ((7.0, 0.62), "#ffffff", "#000000", False),
+    "wonder": ((10.0, 0.8), "#ffcc00", "#3c0032", True),
+}
+
+
+def label_font_sizes(s_final):
+    return {k: round(max(v[0][0], v[0][1] * s_final), 2) for k, v in LABEL_STYLE.items()}
+
+
+def label_records(d, hex_size=None, layer="terrain", labels=True, starts=True, title=False, ss=2):
+    """The text render_png(d, hex_size=..., layer=..., labels=..., starts=..., title=..., legend=False,
+    ss=...) would letter, for drawing as a vector overlay on a render_png(..., text=False) image.
+
+    Returns {"width", "height": the image size in px (legend=False), "pad": PAD (dark border; map x/y
+    start at pad, plus the title strip height in y when title=True), "font": {kind: font px},
+    "labels": [{"x_px", "y_px", "text", "kind"}, ...]}.  (x_px, y_px) is the CENTRE of the text in image
+    pixels, from the renderer's own hex centres (wrap duplicates included when they fall inside the
+    image).  Kinds: "civ" (major start: civ name above the marker), "cs" (city-state name above its
+    marker; only when labels), "num" (player id inside a start marker), "res" (resource short label +
+    strategic quantity above its dot; only when labels or layer == "resources"), "wonder" (natural
+    wonder name below the plot).  Area labels of the `areas` layer are not included."""
+    if layer not in LAYERS:
+        raise ValueError(f"unknown layer {layer!r}; choose from {LAYERS}")
+    full_starts, _ = _start_mode(starts)
+    W, H = d["width"], d["height"]
+    s_final = float(hex_size) if hex_size else default_hex_size(W)
+    L = _layout(d, s_final, ss, title)
+    g, extra, pad, title_h = L["geom"], L["extra"], L["pad"], L["title_h"]
+    tot_w, tot_h = L["img_w"], title_h + 2 * pad + L["map_h"]
+    out_w, out_h = (max(1, round(tot_w / ss)), max(1, round(tot_h / ss))) if ss > 1 else (tot_w, tot_h)
+    kx, ky = out_w / tot_w, out_h / tot_h          # exact downsampling factor per axis (~1/ss)
+    s = s_final
+    fs = label_font_sizes(s)
+    recs = []
+
+    def add(x_ss, y_ss, txt, kind):
+        # x_ss / y_ss: supersampled map-layer coordinates -> final image pixels
+        x = (x_ss - extra + pad) * kx
+        y = (y_ss + title_h + pad) * ky
+        if -s <= x - pad <= out_w - 2 * pad + s:     # outside the map: a cropped wrap duplicate
+            recs.append({"x_px": round(x, 1), "y_px": round(y, 1), "text": txt, "kind": kind})
+
+    show_features = layer in ("terrain", "resources", "startbias")
+    show_resources = layer in ("terrain", "resources")
+    start_xy = {(sp["x"], sp["y"]) for sp in d["start_plots"]} if full_starts else set()
+    if show_resources:
+        big = layer == "resources"
+        if labels or big:
+            for y in range(H):
+                for x in range(W):
+                    i = y * W + x
+                    rname = _name(d["resource_types"], d["resource"][i])
+                    if not rname or (x, y) in start_xy:
+                        continue
+                    cx0, cy = g.center(x, y)
+                    r = L["S"] * (0.26 if big else 0.2)
+                    py = cy if big else cy + L["S"] * 0.32
+                    for off in L["offsets"]:
+                        px = cx0 + off + (0 if big else L["S"] * 0.38)
+                        # text bottom 1 px above the dot
+                        add(px, py - r - (1 + fs["res"] * 0.5) * ss, _res_label(d, i, rname), "res")
+    if show_features:
+        for y in range(H):
+            for x in range(W):
+                fname = _name(d["feature_types"], d["feature"][y * W + x])
+                if fname and is_natural_wonder(fname):
+                    cx0, cy = g.center(x, y)
+                    for off in L["offsets"]:
+                        add(cx0 + off, cy + L["S"] * 1.0, _wonder_label(fname), "wonder")
+    if full_starts:
+        for sp in d["start_plots"]:
+            sx, sy = sp["x"], sp["y"]
+            if not (0 <= sx < W and 0 <= sy < H):
+                continue
+            minor = bool(sp.get("minor"))
+            cx0, cy = g.center(sx, sy)
+            r = max(L["S"] * (0.42 if minor else 0.58), (4.5 if minor else 6.5) * ss)   # marker radius
+            for off in L["offsets"]:
+                cx = cx0 + off
+                add(cx, cy, str(sp.get("player", "?")), "num")
+                if not minor or labels:
+                    k = "cs" if minor else "civ"
+                    add(cx, cy - r - (1.5 + fs[k] * 0.5) * ss, _civ_label(sp), k)
+    return {"width": out_w, "height": out_h, "pad": PAD, "font": fs, "labels": recs}
 
 
 def _draw_hills(dr, cx, cy, S, col, lw):
@@ -690,7 +859,7 @@ def _draw_area_labels(d, dr, centers, offsets, visible, S, ss, s_final):
                                    stroke=max(2, ss + 1), stroke_fill=(0, 0, 0))
 
 
-def _legend(d, layer, img_w, ss, s_final):
+def _legend(d, layer, img_w, ss, s_final, starts=True):
     """Build the legend strip (supersampled coordinates)."""
     items = []  # (kind, colour/extra, label)
     W, H = d["width"], d["height"]
@@ -731,8 +900,19 @@ def _legend(d, layer, img_w, ss, s_final):
     elif layer == "areas":
         na = len(set(d["area"]))
         items.append(("text", None, f"colour = area id ({na} areas); labels: id (plots), water darker"))
-    items.append(("major", None, "Major start"))
-    items.append(("minor", None, "City-state"))
+    elif layer == "mask":
+        items.append(("hex", MASK_WATER, "Water"))
+        if any(d["lake"]):
+            items.append(("hex", MASK_LAKE, "Lake"))
+        items.append(("hex", MASK_FLAT, "Flat"))
+        items.append(("hex", MASK_HILLS, "Hills"))
+        items.append(("hex", MASK_MOUNTAIN, "Mountain"))
+    full_starts, star_starts = _start_mode(starts)
+    if full_starts:
+        items.append(("major", None, "Major start"))
+        items.append(("minor", None, "City-state"))
+    elif star_starts:
+        items.append(("star", None, "Major capital"))
 
     fs = max(10, min(16, s_final * 0.9)) * ss
     font = get_font(fs)
@@ -790,6 +970,9 @@ def _legend(d, layer, img_w, ss, s_final):
                 r = hs * 0.8
                 dr.ellipse([cx - r, cy - r, cx + r, cy + r], fill=START_MAJOR, outline=START_MAJOR_EDGE,
                            width=max(2, int(r / 4)))
+            elif kind == "star":
+                dr.polygon(_star(cx, cy, hs * 0.95, hs * 0.43), fill=STAR_EDGE)
+                dr.polygon(_star(cx, cy, hs * 0.8, hs * 0.36), fill=STAR_FILL)
             elif kind == "minor":
                 r = hs * 0.6
                 dr.rectangle([cx - r, cy - r, cx + r, cy + r], fill=START_MINOR, outline=START_MINOR_EDGE,
@@ -948,6 +1131,12 @@ def main(argv=None):
                     help="force resource/city-state labels on (default: on when hex >= 14)")
     ap.add_argument("--no-labels", dest="labels", action="store_false")
     ap.add_argument("--no-grid", action="store_true", help="no hex outlines")
+    ap.add_argument("--no-starts", action="store_true",
+                    help="hide start-plot markers and civ / city-state names (e.g. for shape review)")
+    ap.add_argument("--stars", action="store_true",
+                    help="start plots as plain stars on MAJOR capitals only (no names, no city-states)")
+    ap.add_argument("--no-text", action="store_true",
+                    help="no lettering (names, resource / wonder labels); markers and dots stay")
     ap.add_argument("--ss", type=int, default=2, help="supersampling factor (1 = fastest)")
     a = ap.parse_args(argv)
 
@@ -964,7 +1153,9 @@ def main(argv=None):
             out = stem + (".png" if a.layer == "terrain" else f"_{a.layer}.png")
         t0 = time.time()
         img = render_png(d, out, hex_size=a.hex, layer=a.layer, legend=not a.no_legend,
-                         title=not a.no_title, labels=a.labels, ss=max(1, a.ss), grid=not a.no_grid)
+                         title=not a.no_title, labels=a.labels, ss=max(1, a.ss), grid=not a.no_grid,
+                         starts=False if a.no_starts else ("stars" if a.stars else True),
+                         text=not a.no_text)
         print(f"wrote {out} ({img.width}x{img.height}, {time.time() - t0:.2f}s)", file=sys.stderr)
     return 0
 

@@ -284,6 +284,23 @@ function M.run(opts)
 		end
 		phase("vpui_core")
 
+		-- harness-only numeric overrides (--define KEY=VALUE): global C5MAPS_DEFINES, nil when none given
+		-- (and always nil in the real game), so scripts can write `(C5MAPS_DEFINES and C5MAPS_DEFINES.W) or W`
+		env.C5MAPS_DEFINES = nil
+		if opts.defines and next(opts.defines) ~= nil then
+			local defs, keys = {}, {}
+			for k, v in pairs(opts.defines) do
+				k = tostring(k)
+				defs[k] = v
+				keys[#keys + 1] = k
+			end
+			table.sort(keys)
+			local parts = {}
+			for i, k in ipairs(keys) do parts[i] = k .. "=" .. tostring(defs[k]) end
+			env.C5MAPS_DEFINES = defs
+			log("[c5maps] defines: " .. table.concat(parts, ", "))
+		end
+
 		-- 1. load the script: top-level code and every include run now
 		if not opts.script_path then error("c5maps: no script_path given", 0) end
 		log("[c5maps] loading " .. opts.script_path)

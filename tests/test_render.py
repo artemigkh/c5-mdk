@@ -71,6 +71,76 @@ def test_png_size_and_colors():
         assert im.width == full.width
 
 
+def test_mask_layer_and_no_starts():
+    _, d = _dump()
+    img = rm.render_png(d, None, hex_size=10, layer="mask", legend=False, title=False, ss=1, grid=False,
+                        starts=False)
+    colors = {c for _, c in img.getcolors(maxcolors=1 << 20)}
+    colors.discard((150, 150, 160))             # wrap-edge markers outside the map
+    assert colors == {rm.BG, rm.MASK_WATER, rm.MASK_LAKE, rm.MASK_FLAT, rm.MASK_HILLS, rm.MASK_MOUNTAIN}, colors
+    # starts=True (default) draws the start markers; starts=False removes every marker colour
+    with_starts = rm.render_png(d, None, hex_size=10, layer="plain", legend=False, title=False, ss=1)
+    without = rm.render_png(d, None, hex_size=10, layer="plain", legend=False, title=False, ss=1, starts=False)
+    c1 = {c for _, c in with_starts.getcolors(maxcolors=1 << 20)}
+    c2 = {c for _, c in without.getcolors(maxcolors=1 << 20)}
+    assert rm.START_MAJOR_EDGE in c1 and rm.START_MAJOR_EDGE not in c2
+    assert rm.START_MINOR not in c2
+
+
+def test_capital_stars():
+    _, d = _dump()
+    majors = [sp for sp in d["start_plots"] if not sp.get("minor")]
+    assert majors and any(sp.get("minor") for sp in d["start_plots"])
+    for layer in ("mask", "plain"):
+        none = rm.render_png(d, None, hex_size=4, layer=layer, legend=False, title=False, grid=False,
+                             starts=False)
+        stars = rm.render_png(d, None, hex_size=4, layer=layer, legend=False, title=False, grid=False,
+                              starts="stars")
+        assert stars.size == none.size
+        L = rm._layout(d, 4.0, 1, False)
+        for sp in d["start_plots"]:
+            cx, cy = L["geom"].center(sp["x"], sp["y"])
+            px, py = int(round(cx - L["extra"] + rm.PAD)), int(round(cy + rm.PAD))
+            win = [(px + dx, py + dy) for dx in range(-2, 3) for dy in range(-2, 3)]
+            white = sum(1 for p in win if min(stars.getpixel(p)) >= 235)
+            if sp.get("minor"):           # city-states get no marker in star mode
+                assert stars.getpixel((px, py)) == none.getpixel((px, py)), sp
+            else:                         # white star on the capital
+                assert white >= 5, (layer, sp, white)
+                assert min(none.getpixel((px, py))) < 235 or layer == "plain", (layer, sp)
+
+
+def test_text_off_and_label_records():
+    _, d = _dump()
+    kw = dict(hex_size=16, layer="terrain", legend=False, title=False, labels=True, starts=True, ss=1)
+    with_text = rm.render_png(d, None, **kw)
+    no_text = rm.render_png(d, None, text=False, **kw)
+    assert with_text.size == no_text.size and with_text.tobytes() != no_text.tobytes()
+    # markers stay without text
+    c = {col for _, col in no_text.getcolors(maxcolors=1 << 20)}
+    assert rm.START_MAJOR_EDGE in c and rm.START_MINOR in c
+    rec = rm.label_records(d, **{k: v for k, v in kw.items() if k != "legend"})
+    assert (rec["width"], rec["height"]) == no_text.size and rec["pad"] == rm.PAD
+    kinds = {r["kind"] for r in rec["labels"]}
+    assert {"civ", "cs", "num", "res", "wonder"} <= kinds, kinds
+    for r in rec["labels"]:
+        assert 0 <= r["x_px"] <= rec["width"] and 0 <= r["y_px"] <= rec["height"] and r["text"], r
+    # the player id sits on its marker centre: that pixel is a marker colour in the text-free render
+    L = rm._layout(d, 16.0, 1, False)
+    for sp in d["start_plots"]:
+        cx, cy = L["geom"].center(sp["x"], sp["y"])
+        x, y = cx - L["extra"] + L["pad"], cy + L["pad"]
+        num = [r for r in rec["labels"] if r["kind"] == "num" and r["text"] == str(sp["player"])
+               and abs(r["x_px"] - x) < 0.6 and abs(r["y_px"] - y) < 0.6]
+        assert num, sp
+        assert no_text.getpixel((int(x), int(y))) in (rm.START_MAJOR, rm.START_MINOR), sp
+    rec_kw = {k: v for k, v in kw.items() if k not in ("legend", "ss")}
+    ss2 = rm.label_records(d, ss=2, **rec_kw)            # supersampled render: same size after downsampling
+    assert (ss2["width"], ss2["height"]) == rm.render_png(d, None, text=False, **dict(kw, ss=2)).size
+    assert rm.label_records(d, hex_size=16, layer="mask", starts=False)["labels"] == []
+    assert {r["kind"] for r in rm.label_records(d, hex_size=16, layer="mask")["labels"]} == {"civ", "cs", "num"}
+
+
 def test_png_nonwrap_and_tiny_hex():
     _, d = _dump()
     d["wrap_x"] = False

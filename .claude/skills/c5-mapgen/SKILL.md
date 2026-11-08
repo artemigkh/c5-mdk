@@ -42,7 +42,11 @@ python host/c5gen.py <script> --seed 42 --png --ascii
   (layers: terrain, plain, mask, areas, continents, elevation, resources, startbias; writes `<stem>_<layer>.png`).
   `mask` is pure shape review: water / flat / hills / mountains in four flat colours, no rivers, features,
   resources or terrain. `--no-starts` hides start markers and civ / city-state names; `--no-grid` drops
-  hex outlines (`render_png(..., starts=False, grid=False)` from Python).
+  hex outlines (`render_png(..., starts=False, grid=False)` from Python; `starts="stars"` = a plain star on
+  each major capital only, `text=False` = markers without lettering).
+- Many runs at once: `python host/sheet.py` (contact sheet, `mask` layer only: shape review) and
+  `python host/explorer.py` (one map at a time in an HTML page: starts, city-states, resources);
+  `sheet.py --explorer` does both from one set of runs. Workflow in §2.
 
 A Lua error prints the full traceback and exits 1 (the `.log` is still written). "c5maps:
 unimplemented Map.Foo" means the fake client lacks a method: add it to `engine/` (port it from
@@ -55,11 +59,24 @@ stub it silently. No shipped script hits one today.
    `GenerateMap` phase order (plots → coasts → terrain → rivers → lakes → features → start plots).
    `python host/c5gen.py .claude/skills/c5-mapgen/templates/Template_Map.lua --size duel --png` runs as is.
 2. Run at standard with 3–5 seeds, look at the PNGs and the stats block. Then duel and huge.
-   - To see several seeds, `--option` values or `--define` values side by side, use the contact
-     sheet runner: `python host/sheet.py MyMap.lua --seeds 1,2,3,4,5 --layer mask` or
-     `--run "thin|--define W=0.18" --run "wide|--define W=0.36"` (runs in parallel, one PNG with
-     land %, landmasses, largest landmass and islets under each tile; `--grep REGEX` adds matching
-     log lines; failed runs show as red tiles with the error). Guide §11.2.
+   Review in two steps (guide §11.2):
+   - **Shape: contact sheets.** `python host/sheet.py MyMap.lua --seeds 1,2,3,4,5` or
+     `--run "thin|--define W=0.18" --run "wide|--define W=0.36"` runs in parallel and composes one
+     PNG of `mask` tiles (land / hills / mountains / water only, a white star per major capital;
+     `--no-stars` for none, `--starts` for full markers + names) with land %, landmasses,
+     largest landmass and islets under each; `--grep REGEX` adds matching log lines; failed runs show
+     as red tiles with the error. Judge only landmass shape here (`--layer` overrides, but grids are
+     for shape).
+   - **Starts, city-states, resources: one map at a time.** `python host/explorer.py --runs
+     out/sheets/<sheet stem>` (or `sheet.py ... --explorer` in one go) writes
+     `<sheet stem>/explorer/explorer.html`: one full-size map at a time with start markers, civ /
+     city-state names and resource labels (text is an SVG overlay: sharp at any zoom, and a class too
+     small to read at the current scale is hidden, leaving its marker / dot), ←/→ between maps, 1/2 terrain / resources layer,
+     click or wheel to zoom 2× and drag to pan, and a caption with seed, args, the script's
+     `[Name] params` / `fit` log lines (`--grep`) and the metrics. City-states placed vs expected are
+     in the map list and turn red when short. Explicit dump paths work too; `--embed` inlines the
+     PNGs for a one-file handoff. Open the HTML in a browser; from the CLI, Read the
+     `<label>_terrain.png` files it writes.
 3. Check the numbers against community-normal ranges:
    `python host/metrics.py compare out/<name>/<name>_standard_1.json --archetype Continents`
    (archetypes: Communitu, Continental_Drift, Continents, SmallContinents, Terra, Oval, Archipelago).
@@ -68,6 +85,14 @@ stub it silently. No shipped script hits one today.
    them without comparing. Baselines exist for standard and huge only; duel/tiny fall back to
    standard and flag capital spacing by design. Advisory, always exits 0.
    What to respect vs what may differ by design: guide §12 (`docs/mapscript-guide.md`).
+   **Offer the full comparison**: when the author's script generates land reliably, ask whether they
+   want its macro stats measured against the community baselines (as was done for Crescent):
+   `python host/benchmark.py --scripts path/To/Script.lua --sizes standard,huge --seeds 25 --workers 10
+   --out out/bench_<name> --baseline out/bench_<name>/<name>-baselines.json` (never the default
+   `--baseline`, which would overwrite `docs/metrics-baselines.json`), then `--report` for the tables.
+   Present it as a copy of the "Civ V map baselines" artifact with the new script added as a
+   marked candidate, plus `<Map>/METRICS.md` in the script's folder. Ask first: 50 runs take ~5 min
+   and the author may be early in layout work where the numbers are known to be off.
 4. Read the `.log`: VP AssignStartingPlots prints region fertility, start assignments and
    resource placement; "Switching to use" means the region method fell back.
 5. Test teams (`--teams 2`) if the script has team logic, and every option value at duel
@@ -109,10 +134,11 @@ stub it silently. No shipped script hits one today.
   Use `Map.PlotDirection(x, y, dir)` / `Map.PlotXYWithRangeCheck` instead of hand-rolled offsets.
 - `Map.Rand(n, "reason")` returns `[0, n)` and the string is mandatory. Never use `math.random`
   for anything that should be reproducible from the map seed.
-- **Small harness seeds make the first `Map.Rand` of a run return 0** (CvRandom: first draw is
-  `(A*seed+C) >> 16`, tiny for seed < ~1e5; the game always seeds with a large number). Use
-  `--seed 100001`-style seeds when the first random decision matters (an orientation, a layout
-  pick), or make that decision after other draws.
+- **The first `Map.Rand` of a run is a near-linear function of the seed** (CvRandom: first draw is
+  `((A*seed+C) >> 16) * n / 2^32`): seeds below ~1e5 return 0, and consecutive seeds (100001,
+  100002, ...) return the *same* value for any realistic `n`. The game seeds with a random 32-bit
+  number so it never shows. In a script, spend the first draw on a throw-away `Map.Rand(2, "warm-up")`
+  before any decision that should vary per seed; from the second draw on the sequence is well mixed.
 - `Map.GetCustomOption(i)`: `i` is the 1-based position in **your** `CustomOptions`; values are
   1-based; "Random" is just the last value and you must resolve it yourself.
 - `SetPlotTypes(t)` wants a **1-based** table, `SetTerrainTypes(t)` a **0-based** one.
@@ -164,7 +190,8 @@ stub it silently. No shipped script hits one today.
 
 - Regression (bash; in PowerShell 5.1 replace `&&` with `;`):
   `python tests/run_lua_tests.py && python tests/test_cli.py && python tests/test_sweep_quick.py`
-  (≈ 1 min). Also `python tests/test_metrics.py`, `python tests/test_render.py` and `python tests/test_sheet.py`.
+  (≈ 1 min). Also `python tests/test_metrics.py`, `python tests/test_render.py`, `python tests/test_sheet.py`
+  and `python tests/test_explorer.py`.
 - Full compatibility sweep (slow, rewrites `docs/script-compat.md`): `python tests/sweep.py`, then
   `python tests/sweep.py --write-compat`.
 - Re-baseline the metrics after a VP update (≈ 7 min with 10 workers, 700 runs):

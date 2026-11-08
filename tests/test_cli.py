@@ -212,6 +212,39 @@ def test_teams_and_option_warning():
     assert majors == [(0, 0), (1, 1), (2, 0), (3, 1)], majors
 
 
+def test_define_passthrough():
+    os.makedirs(OUT, exist_ok=True)
+    tpl = os.path.join(ROOT, ".claude", "skills", "c5-mapgen", "templates", "Template_Map.lua")
+    with open(tpl, encoding="utf-8") as f:
+        src = f.read()
+    marker = "function GeneratePlotTypes()\n"
+    assert marker in src, "template has no GeneratePlotTypes"
+    probe = ('\tif C5MAPS_DEFINES then print("DEFINE_W=" .. tostring(C5MAPS_DEFINES.W) .. " DEFINE_name=" '
+             '.. tostring(C5MAPS_DEFINES.name) .. " DEFINE_flag=" .. tostring(C5MAPS_DEFINES.flag)) '
+             'else print("DEFINES_NIL") end\n')
+    script = os.path.join(OUT, "define_probe.lua")
+    with open(script, "w", encoding="utf-8") as f:
+        f.write(src.replace(marker, marker + probe, 1))
+    c5gen = os.path.join(ROOT, "host", "c5gen.py")
+    log = os.path.join(OUT, "define_probe_duel_42.log")
+
+    r = subprocess.run([sys.executable, c5gen, script, "--size", "duel", "--define", "W=0.25", "--define", "name=abc",
+                        "--define", "flag=true", "--out", OUT, "--no-render", "--quiet"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    with open(log, encoding="utf-8") as f:
+        text = f.read()
+    assert "DEFINE_W=0.25 DEFINE_name=abc DEFINE_flag=true" in text, text[-2000:]
+    assert "[c5maps] defines: W=0.25, flag=true, name=abc" in text, text[-2000:]
+
+    r = subprocess.run([sys.executable, c5gen, script, "--size", "duel", "--out", OUT, "--no-render", "--quiet"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    with open(log, encoding="utf-8") as f:
+        text = f.read()
+    assert "DEFINES_NIL" in text and "[c5maps] defines:" not in text, text[-2000:]
+
+
 def test_validator_soft_warnings():
     d = synthetic_ok_dump()
     w = []

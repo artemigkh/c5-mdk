@@ -51,10 +51,12 @@ engine/        pure-Lua fake client (no host dependency except gameinfo data fil
   include.lua    include() over the VFS search path, print/log capture
   init.lua       bootstraps globals; entry `run_mapscript(path, opts)`
 host/          Python side
-  c5gen.py       CLI: --script, --size, --seed, --option k=v, --civs N, --out dir, --png, --ascii
+  c5gen.py       CLI: --script, --size, --seed, --option k=v, --define k=v, --civs N, --out dir, --png, --ascii
   gamedb.py      exports needed SQLite tables -> engine/data/gameinfo.lua (cached by db mtime)
   metrics.py     numeric map metrics from a dump + `compare` against docs/metrics-baselines.json
   benchmark.py   runs scripts x sizes x seeds in parallel -> out/bench/runs.jsonl + docs/metrics-baselines.json
+  sheet.py       contact sheet: one script x seeds / --option / --define runs in parallel -> labelled PNG (mask layer) + summary.json
+  explorer.py    one-map-at-a-time HTML explorer over sheet runs / dumps: terrain + resources PNGs, starts, CS placed vs expected, metrics
 render/        PIL hex renderer + ASCII renderer from the map dump
 docs/          engine-api.md (catalog/spec), mapscript-guide.md (authoring guide), gotchas
 tests/         Lua + Python tests (fractal determinism, area calc, run smoke tests on all scripts)

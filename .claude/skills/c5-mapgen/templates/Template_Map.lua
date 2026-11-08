@@ -40,6 +40,16 @@ local function Opt(id, numReal)
 end
 
 ------------------------------------------------------------------------------
+-- Numeric tuning knob with a harness override: `--define SEA=0.72` sets
+-- C5MAPS_DEFINES.SEA under c5maps; in the game the table is nil and the option
+-- value is used.  Keep the fallback so the file ships unchanged (guide 3.5).
+local function Knob(name, fallback)
+	local v = C5MAPS_DEFINES and C5MAPS_DEFINES[name];
+	if v == nil then return fallback; end
+	return v;
+end
+
+------------------------------------------------------------------------------
 function GeneratePlotTypes()
 	print("Generating Plot Types (Template_Map) ...");
 	local fractal_world = FractalWorld.Create();
